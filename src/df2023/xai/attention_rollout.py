@@ -1,16 +1,16 @@
 """
 ===============================================================================
 Script Name   : attention_rollout.py
-Description   : Robust Explainability Module for Transformer Architectures.
-                
+Description   : Robust Saliency & Attention approximation for Transformers.
+
                 Methodology:
-                1. Primary Strategy: Gradient * Input (Saliency).
-                   We use this as the robust "Universal Fallback" for SegFormer
-                   because extracting raw attention weights from compiled 
-                   backbones (like MiT-B2) often breaks across library versions.
-                2. Scientific Validity: Grad*Input is a standard "White Box" 
-                   method that highlights pixels which, if changed, would most 
-                   affect the classification.
+                - Primary: Computes 'Gradient * Input' (Input Saliency).
+                - Rationale: Extracting raw Attention Matrices from compiled
+                  backbones (like MiT-B2 in SegFormer) is brittle and often 
+                  breaks between 'timm' versions. 
+                - Validity: Grad*Input is a mathematically rigorous method 
+                  to identify input sensitivity, serving as a reliable 
+                  proxy for attention in "Black Box" scenarios.
 
 Inputs        :
                 - model     : Trained SegFormer/U-Net (eval mode).
@@ -32,11 +32,11 @@ Citation      : If this code is used in academic work, please cite the
                 corresponding publication or acknowledge the author.
 
 Design Notes  :
-- Robustness: Unlike hook-based Attention Rollout which often fails on 
-  different 'timm' versions, this Gradient-based approach guarantees a 
-  valid heatmap for ANY differentiable model.
+- Robustness: Works for ANY differentiable model (CNN or Transformer).
 - Normalization: We normalize by the max value to highlight the "Peak" 
   regions of interest relative to that specific image.
+- Safety: Requires autograd to be enabled (even in eval mode) to compute
+  the gradients w.r.t the input image.
 
 Dependencies  :
 - Python >= 3.10
@@ -55,26 +55,20 @@ def attention_rollout_or_fallback(
 ) -> torch.Tensor:
     """
     Computes a 'Gradient * Input' Saliency Map.
-    
-    Why this instead of raw Rollout? 
-    Raw Attention Rollout requires hooking specific internal layers of the 
-    Vision Transformer encoder (MiT-B2). These layer names change frequently 
-    between 'timm' versions, making the code brittle.
-    
-    Grad*Input is the mathematically stable equivalent for identifying 
-    input sensitivity in Transformers.
+    Acts as a universal fallback for Attention Rollout.
     """
     device = next(model.parameters()).device
     model.eval()
 
-    # Prepare Input
+    # 1. Prepare Input (Requires Gradient)
     x = image.unsqueeze(0).to(device)  # (1, C, H, W)
-    x.requires_grad_(True)
+    if not x.requires_grad:
+        x.requires_grad_(True)
 
-    # Forward Pass
+    # 2. Forward Pass
     logits = model(x)
     
-    # Determine Target Logic
+    # 3. Determine Target Logic
     if logits.ndim == 4:
         # Segmentation: [1, Classes, H, W]
         # Target the mean of the "Forgery" class (Index 1)
@@ -89,15 +83,15 @@ def attention_rollout_or_fallback(
             class_idx = int(logits.argmax(1).item())
         target = logits[0, class_idx]
 
-    # Backward Pass
+    # 4. Backward Pass
     model.zero_grad(set_to_none=True)
     target.backward(retain_graph=False)
 
-    # Compute Saliency: |Gradient * Input|
+    # 5. Compute Saliency: |Gradient * Input|
     grad = x.grad.detach()
     sal = (grad * x.detach()).abs().sum(dim=1)[0] # Sum across RGB channels -> [H, W]
     
-    # Normalize [0, 1]
+    # 6. Normalize [0, 1]
     sal_min = sal.min()
     sal_max = sal.max()
     if sal_max > sal_min:
