@@ -151,27 +151,29 @@ df2023-xai/
 |-- src/
 |   `-- df2023xai/
 |       |-- cli/               # Entry points
-|       |   |-- build_manifest.py  # Scans raw dataset to create master CSV
-|       |   `-- split_scenes.py    # Disjoint scene splitting logic
-|       |   |-- run_train.py       # Main training launcher
-|       |   |-- run_eval.py        # Testing & Metrics
-|       |   |-- run_xai.py         # Attribution generation
+|       |   |-- build_manifest.py      # Scans raw dataset to create master CSV
+|       |   `-- split_scenes.py        # Disjoint scene splitting logic
+|       |   |-- run_train.py           # Main training launcher
+|       |   |-- run_eval.py            # Testing & Metrics
+|       |   |-- run_xai.py             # Attribution generation
 |       |-- data/
-|       |   |-- dataset.py         # Loader with geometric augmentations
-|       |   `-- manifest.py        # CSV parsing & stratification
+|       |   |-- dataset.py             # Loader with geometric augmentations
+|       |   `-- manifest.py            # CSV parsing & stratification
 |       |-- eval/
-|       |   |-- forensic.py            # TBA
+|       |   |-- forensic.py            # Core Evaluation Logic for Phase 2
 |       |-- models/
-|       |   |-- factory.py         # SMP/Timm wrapper
-|       |   `-- segformer.py       # Custom headers (if applicable)
+|       |   |-- factory.py             # SMP/Timm wrapper
+|       |   `-- segformer.py           # Custom headers (if applicable)
 |       |-- train/
-|       |   |-- loop.py            # Training & Validation loops
-|       |   `-- losses.py          # Hybrid Loss (CrossEntropy + SoftDice)
-|       `-- xai/                   # Explainability Engine
-|           |-- shap_explainer.py
-|           `-- ig_explainer.py
-|-- outputs/                   # Training artifacts (Gitignored)
-`-- requirements.txt           # Verified dependencies
+|       |   |-- loop.py                # Training & Validation loops
+|       |   `-- losses.py              # Hybrid Loss (CrossEntropy + SoftDice)
+|       `-- xai/                       # Explainability Engine
+|           |-- attention_rollout.py   # Robust Saliency & Attention approximation for Transformers
+|           |-- ig.py                  # Implementation of Integrated Gradients (IG)
+|           |-- gradcampp.py           # Implementation of Grad-CAM++
+|           `-- shap.py                # Wrapper for SHAP 
+|-- outputs/                           # Training artifacts (Gitignored)
+`-- requirements.txt                   # Verified dependencies
 
 
 ### 📄 License
