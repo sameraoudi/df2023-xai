@@ -159,6 +159,8 @@ df2023-xai/
 |       |-- data/
 |       |   |-- dataset.py         # Loader with geometric augmentations
 |       |   `-- manifest.py        # CSV parsing & stratification
+|       |-- eval/
+|       |   |-- forensic.py            # TBA
 |       |-- models/
 |       |   |-- factory.py         # SMP/Timm wrapper
 |       |   `-- segformer.py       # Custom headers (if applicable)
