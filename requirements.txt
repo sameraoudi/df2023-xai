@@ -12,3 +12,4 @@ scikit-learn
 tqdm
 pillow
 matplotlib
+shap
