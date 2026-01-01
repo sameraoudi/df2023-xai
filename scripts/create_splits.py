@@ -2,11 +2,8 @@
 """
 ===============================================================================
 Script Name   : create_splits.py
-Description   : Data Split Generator
-                This script deterministically splits a master manifest CSV into separate physical 
-                CSV files (e.g., `train_split.csv`, `val_split.csv`) based on the 'split' column. 
-                This ensures that the training pipeline loads a fixed, version-controlled subset 
-                of the data, rather than relying on random runtime splitting.
+Description   : Generates Scene-Disjoint splits (Train/Val/Test).
+                Guarantees that no source scene appears in multiple splits.
 
 Usage        :
                 # Standard usage
@@ -37,65 +34,77 @@ Dependencies  :
 """
 
 import pandas as pd
-import os
-import argparse
-import sys
+import numpy as np
 from pathlib import Path
+from sklearn.model_selection import train_test_split
+
+# Config
+MANIFEST_PATH = "data/manifests/df2023_manifest.csv"
+OUT_DIR = Path("data/manifests/splits")
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+SEED = 1337
+
+def get_scene_id(row):
+    """
+    Robustly extract scene ID from image_id.
+    Format: COCO_DF_MethodID_SceneID -> returns SceneID
+    """
+    # 1. Trust existing columns if present
+    if 'source_scene_id' in row and pd.notna(row['source_scene_id']): 
+        return row['source_scene_id']
+    if 'scene_id' in row and pd.notna(row['scene_id']): 
+        return row['scene_id']
+    
+    # 2. Parse from image_id (e.g. COCO_DF_I000_00918198 -> 00918198)
+    if 'image_id' in row:
+        return str(row['image_id']).split('_')[-1]
+        
+    return "unknown"
 
 def main():
-    # 1. Setup Argument Parser
-    parser = argparse.ArgumentParser(
-        description="Deterministically split the master manifest into separate train/val files."
-    )
-    parser.add_argument(
-        "master_csv", 
-        type=str,
-        help="Path to the master manifest CSV file (must contain a 'split' column)."
-    )
-    parser.add_argument(
-        "--out-dir", 
-        type=str,
-        default="data/manifests/splits", 
-        help="Directory where the resulting split CSVs will be saved."
-    )
-    args = parser.parse_args()
+    print(f"[*] Loading manifest: {MANIFEST_PATH}")
+    if not Path(MANIFEST_PATH).exists():
+        print(f"[ERROR] Manifest not found at {MANIFEST_PATH}")
+        return
 
-    # 2. Validate Input
-    input_path = Path(args.master_csv)
-    if not input_path.exists():
-        print(f"[ERROR] Master manifest not found at: {input_path}")
-        sys.exit(1)
-
-    print(f"Loading master manifest: {input_path}")
-    try:
-        df = pd.read_csv(input_path)
-    except Exception as e:
-        print(f"[ERROR] Failed to read CSV: {e}")
-        sys.exit(1)
-
-    if 'split' not in df.columns:
-        print(f"[ERROR] The file {input_path} is missing the required 'split' column.")
-        sys.exit(1)
-
-    # 3. Ensure Output Directory Exists
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # 4. Process Splits
-    unique_splits = df['split'].unique()
-    print(f"Found {len(unique_splits)} unique splits: {list(unique_splits)}")
-
-    for split_name in unique_splits:
-        # Filter data for this split
-        split_df = df[df['split'] == split_name]
-        
-        # Define output filename (e.g., train_split.csv)
-        output_filename = f"{split_name}_split.csv"
-        output_path = out_dir / output_filename
-        
-        # Save to disk
-        split_df.to_csv(output_path, index=False)
-        print(f"✔ Created {split_name:<10} split: {output_path} ({len(split_df):,} rows)")
+    df = pd.read_csv(MANIFEST_PATH)
+    
+    # 1. Extract Scene IDs
+    print("[*] Extracting Scene IDs...")
+    df['scene_id'] = df.apply(get_scene_id, axis=1)
+    
+    # 2. Get Unique Scenes
+    unique_scenes = df['scene_id'].unique()
+    print(f"[*] Found {len(df)} images from {len(unique_scenes)} unique scenes.")
+    
+    # 3. Perform Disjoint Split on SCENES (Strict 80/10/10)
+    # Step A: Split Train (80%) vs Temp (20%)
+    train_scenes, temp_scenes = train_test_split(unique_scenes, test_size=0.2, random_state=SEED)
+    
+    # Step B: Split Temp into Val (10%) and Test (10%)
+    # Note: 0.5 of 20% = 10%
+    val_scenes, test_scenes = train_test_split(temp_scenes, test_size=0.5, random_state=SEED)
+    
+    print(f"[*] Split Scenes Breakdown:")
+    print(f"    Train Scenes: {len(train_scenes)}")
+    print(f"    Val Scenes:   {len(val_scenes)}")
+    print(f"    Test Scenes:  {len(test_scenes)}")
+    
+    # 4. Map Scenes back to Images
+    train_df = df[df['scene_id'].isin(train_scenes)].copy()
+    val_df   = df[df['scene_id'].isin(val_scenes)].copy()
+    test_df  = df[df['scene_id'].isin(test_scenes)].copy()
+    
+    # 5. Save Splits
+    print("[*] Saving CSVs...")
+    train_df.to_csv(OUT_DIR / "train_split.csv", index=False)
+    val_df.to_csv(OUT_DIR / "val_split.csv", index=False)
+    test_df.to_csv(OUT_DIR / "test_split.csv", index=False)
+    
+    print(f"[OK] Done. Splits saved to {OUT_DIR}")
+    print(f"    Train Images: {len(train_df)} ({(len(train_df)/len(df))*100:.1f}%)")
+    print(f"    Val Images:   {len(val_df)} ({(len(val_df)/len(df))*100:.1f}%)")
+    print(f"    Test Images:  {len(test_df)} ({(len(test_df)/len(df))*100:.1f}%)")
 
 if __name__ == "__main__":
     main()
