@@ -103,7 +103,19 @@ outputs/<model_name>/seed<SEED>/
 ```
 including best.pt and last.pt.
 
-### Phase 2: Forensic Evaluation
+### Phase 2: Forensic Evaluation & Scene Analysis
+
+While the training phase optimizes for pixel-level accuracy using random splits, the **Forensics Evaluation** requires rigorous testing to ensure no data leakage (e.g., training and testing on different frames of the same video).
+
+#### Step 2.1: Generate Scene-Aware Metadata
+Before running final benchmarks, we must enrich the manifest with scene information (e.g., video IDs or COCO scene tags). This allows us to measure performance on **Unseen Scenes**, a requirement for Q1 journal standards.
+
+**Goal:**
+Transfrom the simple training manifest (`df2023_manifest.csv`) into a forensic-ready manifest (`df2023_manifest_with_scenes.csv`).
+
+**Usage:**
+
+#### Step 2.2: Perform Forensic Evaluation
 
 Evaluate the trained models on the Test set using standard segmentation metrics (IoU, Dice, Pixel-F1).
 
@@ -145,7 +157,8 @@ df2023-xai/
 |           |-- val_v2.csv
 |           `-- test_v2.csv
 |-- scripts/
-|   `-- create_splits.py               # Geberate splits
+|   |-- create_splits.py               # Generate splits
+|   `-- merge_scenes.py                # Merge external scene-level metadata
 |-- src/
 |   `-- df2023xai/
 |       |-- cli/                       # Entry points
