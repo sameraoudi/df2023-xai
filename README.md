@@ -74,16 +74,12 @@ python -m df2023xai.cli.build_manifest \
   --out data/manifests/df2023_manifest.csv
 ```
 
-### 2. Generate Scene-Aware Splits
+### 2. Generate Reproducible Splits
 
-Next, partition the Master CSV into Train, Validation, and Test sets using a fixed seed. This ensures disjoint scenes to prevent the model from memorizing backgrounds.
+After building the master manifest, generate the physical training and validation split files. This step ensures that the training script loads a deterministic, version-controlled subset of the data, rather than relying on random runtime splitting.
 
 ```bash
-# Create reproducible splits (Train: 80%, Val: 10%, Test: 10%)
-python -m df2023xai.cli.split_scenes \
-  --manifest data/df2023_manifest.csv \
-  --outdir data/manifests/splits \
-  --seed 1337
+python scripts/create_splits.py data/manifests/df2023_manifest.csv
 ```
   
 ## 🚀 Usage
@@ -137,20 +133,22 @@ Supported Methods:
 
 ```text
 df2023-xai/
-|-- configs/                 # YAML configuration files
-|   |-- train_segformer.yaml # SegFormer hyperparameters
-|   |-- train_unet.yaml      # U-Net hyperparameters
-|   |-- forensic_eval.yaml   # Forensic Evlauation settings
-|   `-- xai_gen.yaml         # XAI settings
+|-- configs/                            # YAML configuration files
+|   |-- train_segformer.yaml            # SegFormer hyperparameters
+|   |-- train_unet.yaml                 # U-Net hyperparameters
+|   |-- forensic_eval.yaml              # Forensic Evlauation settings
+|   `-- xai_gen.yaml                    # XAI settings
 |-- data/
 |   `-- manifests/
-|       `-- splits/            # Official Train/Val/Test CSVs
+|       `-- splits/                     # Official Train/Val/Test CSVs
 |           |-- train_v2.csv
 |           |-- val_v2.csv
 |           `-- test_v2.csv
+|-- scripts/
+|   `-- create_splits.py               # Geberate splits
 |-- src/
 |   `-- df2023xai/
-|       |-- cli/               # Entry points
+|       |-- cli/                       # Entry points
 |       |   |-- build_manifest.py      # Scans raw dataset to create master CSV
 |       |   `-- split_scenes.py        # Disjoint scene splitting logic
 |       |   |-- run_train.py           # Main training launcher
