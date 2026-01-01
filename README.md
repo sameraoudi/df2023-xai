@@ -66,12 +66,12 @@ First, scan the raw image and mask directories to generate a single "Master CSV"
 
 ```bash
 # Index the raw dataset (update paths to match your local storage)
-python -m df2023xai.cli.build_manifest run \
-  --images /path/to/DF2023/train/images \
-  --masks /path/to/DF2023/train/masks \
-  --images-val /path/to/DF2023/val/images \
-  --masks-val /path/to/DF2023/val/masks \
-  --out data/df2023_manifest.csv
+python -m df2023xai.cli.build_manifest \
+  --images data/train/images \
+  --masks data/train/masks \
+  --images-val data/val/images \
+  --masks-val data/val/masks \
+  --out data/manifests/df2023_manifest.csv
 ```
 
 ### 2. Generate Scene-Aware Splits
