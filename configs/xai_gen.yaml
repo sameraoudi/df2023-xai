@@ -1,0 +1,25 @@
+# configs/xai_gen.yaml
+data:
+  # Uses the same manifest as training
+  manifest_csv: "data/manifests/df2023_manifest.csv"
+  img_size: 512
+  # How many images to audit? (8 is usually enough for a figure)
+  sample_n: 8 
+
+models:
+  # This matches the output directory from your running training
+  - path: "outputs/segformer_b2_v2/seed1337"
+
+methods:
+  gradcampp:
+    enabled: true
+  ig:
+    enabled: true
+  attention_rollout:
+    enabled: true
+  shap:
+    enabled: true  # Now enabled since we fixed the code
+
+out:
+  # Where to save the heatmaps
+  dir: "outputs/xai_audit/segformer_b2_seed1337"
