@@ -45,165 +45,110 @@ Dependencies  :
 ===============================================================================
 """
 
-from __future__ import annotations
-import os
-import sys
-import typer
-import torch
-import numpy as np
-import matplotlib.cm as cm
-from PIL import Image
+import os, json, sys, typer, torch
 from omegaconf import OmegaConf
-from typing import Dict, Any
-
-# Internal Imports
-from df2023xai.data.dataset import ForgerySegDataset
-import segmentation_models_pytorch as smp
+from PIL import Image
+import numpy as np
+from ..models.factory import load_model_from_dir
+from ..data.dataset import ForgerySegDataset
+# Import the fixed XAI function
+from ..xai.shap import shap_or_fallback 
 
 app = typer.Typer(add_completion=False)
 
-
-def _build_model_from_name(name: str, num_classes: int = 2) -> torch.nn.Module:
-    """Reconstruct model architecture based on naming convention."""
-    name = name.lower()
-    if "segformer" in name:
-        # e.g., segformer_b2 -> mit_b2
-        encoder = name.replace("segformer_", "mit_")
-        return smp.Segformer(encoder_name=encoder, classes=num_classes)
-    elif "unet" in name:
-        # e.g., unet_r34 -> resnet34
-        encoder = "resnet34" 
-        if "r50" in name: encoder = "resnet50"
-        return smp.Unet(encoder_name=encoder, classes=num_classes)
-    else:
-        raise ValueError(f"Unknown architecture in model name: {name}")
-
-
-def _apply_colormap(heatmap: np.ndarray) -> Image.Image:
-    """Convert 0..1 float heatmap to RGB image using Jet colormap."""
-    colored = cm.jet(heatmap)[:, :, :3] 
-    colored = (colored * 255).astype(np.uint8)
-    return Image.fromarray(colored)
-
-
-def _create_panel(img_t: torch.Tensor, mask_t: torch.Tensor, heatmap_t: torch.Tensor) -> Image.Image:
-    """Create a composite panel: [Original | Mask | Heatmap]."""
-    # 1. Prepare Original Image
-    img_np = img_t.permute(1, 2, 0).cpu().numpy()
-    img_np = (img_np * 255).clip(0, 255).astype(np.uint8)
-    pil_img = Image.fromarray(img_np)
-
-    # 2. Prepare Ground Truth Mask
-    mask_np = mask_t.cpu().numpy().astype(np.uint8) * 255
-    pil_mask = Image.fromarray(mask_np, mode="L").convert("RGB")
-
-    # 3. Prepare Heatmap
-    hm = heatmap_t.detach().cpu().numpy()
-    # Normalize locally to highlight relative importance
-    if hm.max() > hm.min():
-        hm = (hm - hm.min()) / (hm.max() - hm.min())
-    pil_heat = _apply_colormap(hm)
-
-    # 4. Stitch
-    w, h = pil_img.size
-    panel = Image.new("RGB", (w * 3, h))
-    panel.paste(pil_img, (0, 0))
-    panel.paste(pil_mask, (w, 0))
-    panel.paste(pil_heat, (w * 2, 0))
+def _to_pil_heatmap(img_t: torch.Tensor, heat: torch.Tensor):
+    # Normalize Image for background
+    rgb = (img_t.clone().clamp(0,1).permute(1,2,0).cpu().numpy() * 255).astype(np.uint8)
     
-    return panel
-
+    # Normalize Heatmap to Red Overlay
+    h = (heat.clone().clamp(0,1).cpu().numpy() * 255).astype(np.uint8)
+    # Create Red channel overlay: (R=Heat, G=0, B=0)
+    h_colored = np.stack([h, np.zeros_like(h), np.zeros_like(h)], axis=-1)
+    
+    # Blend: 60% Original + 40% Heatmap
+    out = (0.6 * rgb + 0.4 * h_colored).clip(0,255).astype(np.uint8)
+    return Image.fromarray(out)
 
 def _run_impl(cfg_path: str):
-    if not os.path.exists(cfg_path):
-        typer.echo(f"[ERROR] Config not found: {cfg_path}", err=True)
-        sys.exit(1)
-
+    print(f"[XAI] Loading config: {cfg_path}")
     cfg = OmegaConf.load(cfg_path)
-    out_dir = cfg.get("out", {}).get("dir", "outputs/xai_panels")
-    os.makedirs(out_dir, exist_ok=True)
-    
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    os.makedirs(cfg.out.dir, exist_ok=True)
 
-    # 1. Load Data
-    typer.echo(f"[*] Loading dataset: {cfg.data.manifest_csv}")
-    ds = ForgerySegDataset(cfg.data.manifest_csv, split="val", img_size=cfg.data.img_size)
+    # FIX 1: Correct Argument Order (Manifest, Size, Split)
+    # dataset.py signature: (manifest_csv, img_size, split, aug_cfg)
+    ds = ForgerySegDataset(
+        manifest_csv=cfg.data.manifest_csv, 
+        img_size=cfg.data.img_size,
+        split="val" # Use validation set for audit
+    )
     
     n = min(len(ds), int(cfg.data.get("sample_n", 8)))
-    indices = range(n)
-    typer.echo(f"[*] Processing {n} samples...")
+    print(f"[XAI] Generating explanations for {n} samples...")
+    
+    # Pre-load samples to avoid reloading dataset
+    samples = []
+    for i in range(n):
+        samples.append(ds[i]) # Returns (img, mask)
 
-    # 2. Iterate Models
-    for m_cfg in cfg.models:
-        model_name = m_cfg["name"]
-        ckpt_path = m_cfg["path"]
-        
-        typer.echo(f"[*] Processing model: {model_name}")
-        
+    results = {}
+    
+    for m in cfg.models:
+        model_dir = m["path"]
         try:
-            model = _build_model_from_name(model_name).to(device)
-            chk = torch.load(ckpt_path, map_location=device)
-            state_dict = chk["model"] if "model" in chk else chk
-            model.load_state_dict(state_dict)
-            model.eval()
+            model = load_model_from_dir(model_dir).eval()
         except Exception as e:
-            typer.echo(f"[WARN] Failed to load {model_name}: {e}")
+            print(f"[Error] Failed to load {model_dir}: {e}")
             continue
+            
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model.to(device)
+        model_name = os.path.basename(os.path.dirname(model_dir))
+        results[model_name] = {}
+        print(f"[XAI] Processing Model: {model_name} on {device}")
 
-        # 3. Iterate XAI Methods
-        methods = cfg.get("methods", {})
-        
-        # --- Method 1: Grad-CAM++ ---
-        if methods.get("gradcampp", {}).get("enabled", False):
-            from df2023xai.xai.gradcampp import gradcampp_or_fallback
-            for idx in indices:
-                img, mask = ds[idx]
-                heatmap = gradcampp_or_fallback(model, img.to(device))
-                panel = _create_panel(img, mask, heatmap)
-                panel.save(os.path.join(out_dir, f"{model_name}_sample{idx}_gradcampp.png"))
+        # --- Grad-CAM++ ---
+        if cfg.methods.get("gradcampp", {}).get("enabled", False):
+            from ..xai.gradcampp import gradcampp_or_fallback
+            for k, (img, mask) in enumerate(samples): # FIX 2: Unpack 2 items
+                heat = gradcampp_or_fallback(model, img)
+                fname = f"{model_name}_gradcampp_{k}.png"
+                _to_pil_heatmap(img, heat).save(os.path.join(cfg.out.dir, fname))
 
-        # --- Method 2: Integrated Gradients ---
-        if methods.get("ig", {}).get("enabled", False):
-            from df2023xai.xai.ig import integrated_gradients_minimal
-            steps = methods.get("ig", {}).get("steps", 20)
-            for idx in indices:
-                img, mask = ds[idx]
-                heatmap = integrated_gradients_minimal(model, img.to(device), steps=steps)
-                panel = _create_panel(img, mask, heatmap)
-                panel.save(os.path.join(out_dir, f"{model_name}_sample{idx}_ig.png"))
+        # --- Integrated Gradients ---
+        if cfg.methods.get("ig", {}).get("enabled", False):
+            from ..xai.ig import integrated_gradients_minimal
+            for k, (img, mask) in enumerate(samples):
+                heat = integrated_gradients_minimal(model, img, steps=16)
+                fname = f"{model_name}_ig_{k}.png"
+                _to_pil_heatmap(img, heat).save(os.path.join(cfg.out.dir, fname))
 
-        # --- Method 3: Attention Rollout (or Saliency Fallback) ---
-        if methods.get("attention_rollout", {}).get("enabled", False):
-            # Note: We allow this for ALL models now (acts as Grad*Input Saliency for U-Net)
-            from df2023xai.xai.attention_rollout import attention_rollout_or_fallback
-            for idx in indices:
-                img, mask = ds[idx]
-                heatmap = attention_rollout_or_fallback(model, img.to(device))
-                panel = _create_panel(img, mask, heatmap)
-                panel.save(os.path.join(out_dir, f"{model_name}_sample{idx}_attroll.png"))
+        # --- Attention Rollout ---
+        if cfg.methods.get("attention_rollout", {}).get("enabled", False):
+            from ..xai.attention_rollout import attention_rollout_or_fallback
+            for k, (img, mask) in enumerate(samples):
+                heat = attention_rollout_or_fallback(model, img)
+                fname = f"{model_name}_attroll_{k}.png"
+                _to_pil_heatmap(img, heat).save(os.path.join(cfg.out.dir, fname))
 
-        # --- Method 4: SHAP (Partition Explainer) ---
-        if methods.get("shap", {}).get("enabled", False):
-            from df2023xai.xai.shap import shap_or_fallback
-            for idx in indices:
-                img, mask = ds[idx]
-                heatmap = shap_or_fallback(model, img.to(device))
-                panel = _create_panel(img, mask, heatmap)
-                panel.save(os.path.join(out_dir, f"{model_name}_sample{idx}_shap.png"))
+        # --- SHAP (Now Enabled) ---
+        if cfg.methods.get("shap", {}).get("enabled", False):
+            print(f"  > Running SHAP (Warning: Slow)...")
+            for k, (img, mask) in enumerate(samples):
+                try:
+                    # Uses the fixed shap.py with dynamic channel selection
+                    heat = shap_or_fallback(model, img) 
+                    fname = f"{model_name}_shap_{k}.png"
+                    _to_pil_heatmap(img, heat).save(os.path.join(cfg.out.dir, fname))
+                except Exception as e:
+                    print(f"    [!] SHAP failed for sample {k}: {e}")
 
-    typer.echo(f"[OK] XAI Generation Complete → {out_dir}")
-
+    with open(os.path.join(cfg.out.dir, "xai_summary.json"), "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"[OK] XAI panels saved to {cfg.out.dir}")
 
 @app.command()
-def run(config: str = typer.Option(..., "--config", help="Path to XAI config (e.g., configs/xai_gen.yaml)")):
+def run(config: str = typer.Option(..., "--config", help="Path to XAI yaml")):
     _run_impl(config)
-
-
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context, config: str = typer.Option(None, "--config")):
-    if ctx.invoked_subcommand is None and config:
-        _run_impl(config)
-
 
 if __name__ == "__main__":
     app()
