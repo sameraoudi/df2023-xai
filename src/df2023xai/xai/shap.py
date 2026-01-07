@@ -46,9 +46,6 @@ import torch
 import numpy as np
 import warnings
 
-# NOTE: Since this file is named 'shap.py', we must be careful with imports.
-# We defer the library import to the function scope to avoid namespace collisions.
-
 def shap_or_fallback(model: torch.nn.Module, image: torch.Tensor) -> torch.Tensor:
     """
     Compute SHAP attribution using PartitionExplainer.
@@ -65,17 +62,24 @@ def shap_or_fallback(model: torch.nn.Module, image: torch.Tensor) -> torch.Tenso
     model.eval()
     
     # 1. Prepare Function for SHAP
-    # SHAP expects a function that takes numpy arrays (B,H,W,C) and returns scores
     def f(x_np):
         # Transpose NHWC -> NCHW
         x_tens = torch.from_numpy(x_np).permute(0, 3, 1, 2).float().to(device)
         with torch.no_grad():
             logits = model(x_tens)
-            # Target the "Forgery" class (Index 1) average score
+            
+            # --- FIX: Dynamic Binary/Multi-class Handling ---
             if logits.ndim == 4:
-                return logits[:, 1, :, :].mean(dim=(1, 2)).cpu().numpy().reshape(-1, 1)
+                # If Binary (shape [B, 1, H, W]), use channel 0
+                # If Multi (shape [B, 2, H, W]), use channel 1 (Forgery)
+                target_idx = 1 if logits.shape[1] > 1 else 0
+                
+                # Mean score of the target class
+                return logits[:, target_idx, :, :].mean(dim=(1, 2)).cpu().numpy().reshape(-1, 1)
             else:
-                return logits[:, 1].cpu().numpy().reshape(-1, 1)
+                # Classification fallback
+                target_idx = 1 if logits.shape[1] > 1 else 0
+                return logits[:, target_idx].cpu().numpy().reshape(-1, 1)
 
     # 2. Prepare Input
     # Transpose [C,H,W] -> [H,W,C] for SHAP
@@ -83,14 +87,10 @@ def shap_or_fallback(model: torch.nn.Module, image: torch.Tensor) -> torch.Tenso
     input_batch = np.expand_dims(img_np, axis=0)  # [1, H, W, 3]
 
     # 3. Create Explainer
-    # Using a "Blur" or "Inpaint" masker is standard for image background removal simulation
-    # We use a partition masker suitable for images
     masker = shap.maskers.Image("inpaint_telea", input_batch[0].shape)
     explainer = shap.Explainer(f, masker, output_names=["ForgeryScore"])
 
     # 4. Compute Shapley Values
-    # max_evals limits runtime; higher is more accurate but slower
-    # We select the top output class (Forgery)
     shap_values = explainer(
         input_batch, 
         max_evals=300, 
@@ -99,10 +99,7 @@ def shap_or_fallback(model: torch.nn.Module, image: torch.Tensor) -> torch.Tenso
     )
 
     # 5. Extract Heatmap
-    # SHAP returns (1, H, W, 3, OutputClasses). 
     values = shap_values.values[0] 
-    
-    # Sum absolute values across RGB to get a single saliency map
     heatmap_np = np.abs(values).sum(axis=-1) # [H, W]
     
     # Normalize
