@@ -115,6 +115,13 @@ Transfrom the simple training manifest (`df2023_manifest.csv`) into a forensic-r
 
 **Usage:**
 
+```bash
+python -m df2023xai.cli.split_scenes \
+                    --manifest data/manifests/df2023_manifest.csv \
+                    --outdir data/manifests/splits \
+                    --seed 1337
+```
+
 #### Step 2.2: Perform Forensic Evaluation
 
 Evaluate the trained models on the Test set using standard segmentation metrics (IoU, Dice, Pixel-F1).
