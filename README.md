@@ -57,12 +57,13 @@ cd df2023-xai
 # Install dependencies
 pip install -r requirements.txt
 ```
-### 📂 Data Preparation
+# 🚀 Usage
+## Phase 1: Data Preparation (Strict Disjoint Splits)
 
-The project requires the **DF2023** dataset. We enforce a strict **80/10/10** split ensuring that all manipulations derived from the same source scene remain in the same partition.
+The project requires the **DF2023** dataset. The project enforces a strict **Scene-Disjoint Protocol**. You must generate these splits **before** training to ensure no background scenes leak between Train, Val, and Test sets.
 
 ### 1. Build Master Manifest
-First, scan the raw image and mask directories to generate a single "Master CSV" containing all file paths and metadata.
+Scan raw directories to generate the master index. A single "Master CSV" containing all file paths and metadata.
 
 ```bash
 # Index the raw dataset (update paths to match your local storage)
@@ -74,18 +75,17 @@ python -m df2023xai.cli.build_manifest \
   --out data/manifests/df2023_manifest.csv
 ```
 
-### 2. Generate Reproducible Splits
-
-After building the master manifest, generate the physical training and validation split files. This step ensures that the training script loads a deterministic, version-controlled subset of the data, rather than relying on random runtime splitting.
-
+### 2. Generate Scene-Disjoint Partitions
+Transform the master manifest into forensic-ready disjoint splits.
 ```bash
 python scripts/create_splits.py data/manifests/df2023_manifest.csv
 ```
-  
-## 🚀 Usage
-### Phase 1: Training (Predictive Models)
+**Outputs**: train_split.csv, val_split.csv, test_split.csv in data/manifests/splits/.
 
-We support reproducible training with dynamic seeding. The pipeline uses Automatic Mixed Precision (AMP) and Distributed Data Parallel (compatible) loaders.
+## Phase 2: Training (Predictive Models)
+We use a Binary Hybrid Loss and enforce determinism for reproducibility.
+
+**Note**: For SegFormer (Transformer), you must enable the CUBLAS determinism flag to ensure attention map consistency.We support reproducible training with dynamic seeding. The pipeline uses Automatic Mixed Precision (AMP) and Distributed Data Parallel (compatible) loaders.
 
 **Train SegFormer-B2 (Transformer)**
 ```bash
@@ -97,56 +97,32 @@ SEED=1337 python -m df2023xai.cli.run_train \
 SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_unet_r34_full.yaml train
 ```
-**Outputs (logs + checkpoints) are saved to:**
-```bash
-outputs/<model_name>/seed<SEED>/
-```
-including best.pt and last.pt.
+**Outputs**: Logs and checkpoints (best.pt, last.pt, config_train.json) are saved to: outputs/<model_name>/seed<SEED>/
 
-### Phase 2: Forensic Evaluation & Scene Analysis
+## Phase 3: Forensic Evaluation
 
-While the training phase optimizes for pixel-level accuracy using random splits, the **Forensics Evaluation** requires rigorous testing to ensure no data leakage (e.g., training and testing on different frames of the same video).
-
-#### Step 2.1: Generate Scene-Aware Metadata
-Before running final benchmarks, we must enrich the manifest with scene information (e.g., video IDs or COCO scene tags). This allows us to measure performance on **Unseen Scenes**, a requirement for Q1 journal standards.
-
-**Goal:**
-Transfrom the simple training manifest (`df2023_manifest.csv`) into a forensic-ready manifest (`df2023_manifest_with_scenes.csv`).
-
-**Usage:**
-
-```bash
-python -m df2023xai.cli.split_scenes \
-                    --manifest data/manifests/df2023_manifest.csv \
-                    --outdir data/manifests/splits \
-                    --seed 1337
-```
-
-#### Step 2.2: Perform Forensic Evaluation
-
-Evaluate the trained models on the Test set using standard segmentation metrics (IoU, Dice, Pixel-F1).
+Evaluate the trained models on the **Scene-Disjoint Test Set** (Unseen Scenes), using standard segmentation metrics (IoU, Dice, Pixel-F1).
 
 ```bash
 python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval.yaml
 ```
-
 Metrics include:
 - IoU
 - Dice
 - Pixel-F1
 
-### Phase 3: XAI Generation
+## Phase 4: XAI Faithfulness Audit
 
-Generate attribution maps to visualize why the model flagged specific regions.
+Generate attribution maps to visualize why the model flagged specific regions. This step requires a trained model checkpoint.
 
 ```bash
 python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 ```
-Supported Methods: 
-- SHAP
-- IntegratedGradients
-- GradCAM++
-- AttentionRollout
+**Supported Methods**: 
+- **Grad-CAM++** (Class Activation Mapping)
+- **Integrated Gradients** (Axiomatic Attribution)
+- **SHAP** (Game Theoretic Estimation)
+- **Attention Rollout **(Transformer Saliency)
 
 ## 📦 Repository Structure
 
@@ -165,12 +141,10 @@ df2023-xai/
 |           `-- test_v2.csv
 |-- scripts/
 |   |-- create_splits.py               # Generate splits
-|   `-- merge_scenes.py                # Merge external scene-level metadata
 |-- src/
 |   `-- df2023xai/
 |       |-- cli/                       # Entry points
 |       |   |-- build_manifest.py      # Scans raw dataset to create master CSV
-|       |   `-- split_scenes.py        # Disjoint scene splitting logic
 |       |   |-- run_train.py           # Main training launcher
 |       |   |-- run_eval.py            # Testing & Metrics
 |       |   |-- run_xai.py             # Attribution generation
