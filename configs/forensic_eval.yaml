@@ -1,0 +1,20 @@
+# configs/forensic_eval.yaml
+data:
+  # This MUST point to the Test Split (Unseen Scenes)
+  manifest_csv: "data/manifests/splits/test_split.csv"
+  img_size: 512
+  batch_size: 16 # Evaluation is cheaper than training, can increase batch size
+  num_workers: 2
+
+models:
+  # The script will auto-load 'best.pt' from this folder
+  - path: "outputs/segformer_b2_v2/seed1337"
+    name: "SegFormer-B2"
+
+metrics:
+  threshold: 0.5 # Sigmoid threshold
+  report_per_class: false # We only care about the "Forgery" class (1)
+
+out:
+  dir: "outputs/eval_results/"
+  save_overlays: true # Saves visual examples of predictions vs GT
