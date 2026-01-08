@@ -1,20 +1,35 @@
 # configs/forensic_eval.yaml
-data:
-  # This MUST point to the Test Split (Unseen Scenes)
-  manifest_csv: "data/manifests/splits/test_split.csv"
-  img_size: 512
-  batch_size: 16 # Evaluation is cheaper than training, can increase batch size
-  num_workers: 2
+project_root: .  # Relative path is safer for Git cloning
 
 models:
-  # The script will auto-load 'best.pt' from this folder
-  - path: "outputs/segformer_b2_v2/seed1337"
-    name: "SegFormer-B2"
+  # The script uses 'load_model_from_dir' from factory.py
+  # It expects the FOLDER path (where best.pt and config_train.json live)
+  - name: "SegFormer-B2 (Seed 1337)"
+    path: "outputs/segformer_b2_v2/seed1337"
+
+data:
+  # CRITICAL: Point to the canonical Scene-Disjoint split
+  manifest_csv: "data/manifests/splits/test_split.csv"
+  img_size: 512
+  batch_size: 16  # Faster evaluation
+  num_workers: 2
 
 metrics:
-  threshold: 0.5 # Sigmoid threshold
-  report_per_class: false # We only care about the "Forgery" class (1)
+  # Sigmoid Threshold (Required for Binary Model)
+  threshold: 0.5 
+  # We only report the "Forgery" class (Index 1 is handled by the binary logic)
+  report_per_class: false 
+  # Standard Forensic Metrics
+  overlap: [iou, dice, pixel_f1]
+
+# --- Q1 Value Add: Robustness Analysis ---
+# This generates the "Perturbation Analysis" often requested by reviewers
+robustness:
+  enabled: true
+  jpeg_compression: [70, 90]  # Standard social media qualities
+  gaussian_noise: [0.01, 0.05] # Standard variance
 
 out:
   dir: "outputs/eval_results/"
-  save_overlays: true # Saves visual examples of predictions vs GT
+  save_overlays: true     # Saves visual examples (Pred vs GT)
+  save_tables: true       # Saves CSVs for LaTeX
