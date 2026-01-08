@@ -85,15 +85,19 @@ python scripts/create_splits.py data/manifests/df2023_manifest.csv
 ## Phase 2: Training (Predictive Models)
 We use a Binary Hybrid Loss and enforce determinism for reproducibility.
 
-**Note**: For SegFormer (Transformer), you must enable the CUBLAS determinism flag to ensure attention map consistency.We support reproducible training with dynamic seeding. The pipeline uses Automatic Mixed Precision (AMP) and Distributed Data Parallel (compatible) loaders.
+**Note 1**: For SegFormer (Transformer), you must enable the CUBLAS determinism flag to ensure attention map consistency.We support reproducible training with dynamic seeding. The pipeline uses Automatic Mixed Precision (AMP) and Distributed Data Parallel (compatible) loaders.
 
-**Train SegFormer-B2 (Transformer)**
+**Note 2**: DL training is stochastic (random weight initialization, data shuffling). A single high score could be a statistical fluke (a "lucky initialization"). By training the identical model three times with different random starts, you calculate the Mean $\pm$ Standard Deviation (e.g., $84.2 \pm 0.3\%$). This proves your method is stable and consistently superior, not just lucky. The following seed numbers are mathematically arbitrary but culturally significant in computer science. They are chosen to be distinct and easily memorable: **1337**, **2027**, and **3141**.
+
 ```bash
+# Enable Deterministic Mode (Critical for Transformers)
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+
+# Train SegFormer-B2 (Transformer)
 SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_segformer_b2_full.yaml train
-```
-**Train U-Net R34 (CNN Baseline)**
-```bash
+
+# Train U-Net R34 (CNN Baseline)
 SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_unet_r34_full.yaml train
 ```
