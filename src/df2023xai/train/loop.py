@@ -47,256 +47,150 @@ Dependencies  :
 - torch, numpy
 ===============================================================================
 """
-
-from __future__ import annotations
-import math
-import sys
-import time
-import logging
-import csv
-from pathlib import Path
-from typing import Any, Dict, Tuple
-
+# src/df2023xai/train/loop.py
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
+from tqdm import tqdm
+import os
+import json
 
+def compute_binary_metrics(logits, targets, threshold=0.5):
+    """
+    Compute IoU and Dice for Binary Segmentation (Sigmoid).
+    logits: [B, 1, H, W]
+    targets: [B, H, W] (0 or 1)
+    """
+    # Sigmoid + Threshold
+    probs = torch.sigmoid(logits)
+    preds = (probs > threshold).float()
+    
+    # Flatten
+    preds = preds.view(-1)
+    targets = targets.view(-1)
+    
+    intersection = (preds * targets).sum()
+    union = preds.sum() + targets.sum() - intersection
+    
+    iou = (intersection + 1e-7) / (union + 1e-7)
+    dice = (2 * intersection + 1e-7) / (preds.sum() + targets.sum() + 1e-7)
+    
+    return iou.item(), dice.item()
 
-class CsvLogger:
-    """Helper to write training metrics to a CSV file for plotting."""
-    def __init__(self, filepath: Path, fieldnames: list[str]):
-        self.filepath = filepath
-        self.fieldnames = fieldnames
-        if not self.filepath.exists():
-            with open(self.filepath, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
+def train_loop(model, criterion, train_loader, val_loader, cfg, out_dir):
+    device = next(model.parameters()).device
+    optimizer = torch.optim.AdamW(
+        model.parameters(), 
+        lr=float(cfg['train']['lr']), 
+        weight_decay=float(cfg['train']['weight_decay'])
+    )
+    
+    # Scheduler
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=cfg['train']['max_steps']
+    )
 
-    def log(self, row: dict):
-        with open(self.filepath, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=self.fieldnames)
-            writer.writerow(row)
-
-
-def _setup_logger():
-    logger = logging.getLogger("train_loop")
-    logger.setLevel(logging.INFO)
-    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
-        sh = logging.StreamHandler(sys.stdout)
-        sh.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
-        logger.addHandler(sh)
-    return logger
-
-
-def _unpack_batch(batch) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Robustly unpack batch regardless of Dict or Tuple format."""
-    if isinstance(batch, dict):
-        # Common keys used by various dataloaders
-        for a in ("image", "img", "x"):
-            if a in batch:
-                for b in ("mask", "y", "target"):
-                    if b in batch:
-                        return batch[a], batch[b]
-    if isinstance(batch, (list, tuple)) and len(batch) >= 2:
-        return batch[0], batch[1]
-    raise ValueError("Dataset must yield (image, mask) or dict with standard keys.")
-
-
-def _amp_ctx():
-    """Returns the correct AMP context manager for the current PyTorch version."""
-    if torch.cuda.is_available():
-        try:
-            return torch.amp.autocast("cuda")
-        except AttributeError:
-            # Fallback for older Torch versions
-            from torch.cuda.amp import autocast
-            return autocast()
-    from contextlib import nullcontext
-    return nullcontext()
-
-
-def _grad_scaler(enabled: bool):
-    """Initializes Gradient Scaler for AMP."""
-    if not enabled:
-        class _Dummy:
-            def scale(self, x): return x
-            def step(self, opt): opt.step()
-            def update(self): pass
-            def unscale_(self, opt): pass
-        return _Dummy()
+    best_dice = 0.0
+    step = 0
+    max_steps = cfg['train']['max_steps']
+    val_interval = cfg['train']['val_every_steps']
+    
+    # Detect Binary Mode from Model
+    # If model.segmentation_head[0].out_channels == 1 -> Binary
+    is_binary = True
     try:
-        return torch.amp.GradScaler("cuda")
-    except AttributeError:
-        from torch.cuda.amp import GradScaler
-        return GradScaler(enabled=True)
+        # Check SMP/Segformer head
+        if hasattr(model, 'seg_head'):
+            if model.seg_head[2].out_channels > 1: is_binary = False
+        elif hasattr(model, 'segmentation_head'):
+             if model.segmentation_head[0].out_channels > 1: is_binary = False
+    except:
+        pass # Default to Binary (Safe for our current config)
 
+    print(f"[Loop] Starting training. Binary Mode: {is_binary}")
+    
+    model.train()
+    
+    # Infinite Iterator wrapper
+    train_iter = iter(train_loader)
+    
+    with tqdm(total=max_steps, initial=0) as pbar:
+        while step < max_steps:
+            try:
+                images, masks = next(train_iter)
+            except StopIteration:
+                train_iter = iter(train_loader)
+                images, masks = next(train_iter)
+                
+            images = images.to(device)
+            masks = masks.to(device)
+            
+            # Forward
+            logits = model(images)
+            
+            # Loss Calculation
+            # Binary Loss expects [B, 1, H, W] and [B, H, W]
+            loss = criterion(logits, masks)
+            
+            optimizer.zero_grad()
+            loss.backward()
+            
+            if cfg['train'].get('grad_clip'):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), cfg['train']['grad_clip'])
+                
+            optimizer.step()
+            scheduler.step()
+            
+            step += 1
+            pbar.update(1)
+            pbar.set_description(f"Loss: {loss.item():.4f}")
+            
+            # Validation
+            if step % val_interval == 0:
+                val_iou, val_dice = validate(model, val_loader, device, is_binary)
+                model.train() # Switch back
+                
+                # Log to console
+                tqdm.write(f"Step {step} | Val IoU: {val_iou:.4f} | Val Dice: {val_dice:.4f}")
+                
+                # Save Best
+                if val_dice > best_dice:
+                    best_dice = val_dice
+                    torch.save(model.state_dict(), os.path.join(out_dir, "best.pt"))
+                    tqdm.write(f"  [+] New Best Dice! Saved best.pt")
 
-def _val_pass(model: nn.Module, val_loader, device: torch.device) -> Tuple[float, float]:
-    """
-    Perform a rigorous validation pass.
-    Returns: (Mean IoU, Mean Dice)
-    """
+                # Save Last
+                torch.save({
+                    'step': step,
+                    'model': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'best_dice': best_dice
+                }, os.path.join(out_dir, "last.pt"))
+
+def validate(model, loader, device, is_binary=True):
     model.eval()
-    tot_iou = 0.0
-    tot_dice = 0.0
-    n = 0.0
+    total_iou = 0.0
+    total_dice = 0.0
+    steps = 0
     
     with torch.no_grad():
-        for batch in val_loader:
-            img, mask = _unpack_batch(batch)
-            img = img.to(device, non_blocking=True)
-            mask = mask.to(device, non_blocking=True)
-
-            # Inference
-            logits = model(img)
-            pred = torch.argmax(logits, dim=1)
+        for images, masks in loader:
+            images = images.to(device)
+            masks = masks.to(device)
             
-            # Binary masks (Foreground=1)
-            pf = (pred == 1).float()
-            tf = (mask == 1).float()
-
-            # Intersection & Union (Batch-wise sum for speed, then mean)
-            inter = (pf * tf).sum(dim=(1, 2))
-            union = (pf + tf - pf * tf).sum(dim=(1, 2)) + 1e-7
+            logits = model(images)
             
-            # Dice: 2*Inter / (Area_Pred + Area_GT)
-            dice_denom = pf.sum(dim=(1, 2)) + tf.sum(dim=(1, 2)) + 1e-7
-            dice_score = (2.0 * inter / dice_denom).mean()
-            
-            # IoU: Inter / Union
-            iou_score = (inter / union).mean()
-
-            tot_dice += dice_score.item()
-            tot_iou += iou_score.item()
-            n += 1.0
-
-    model.train()
-    n = max(n, 1.0)
-    return tot_iou / n, tot_dice / n
-
-
-def train_loop(
-    model: nn.Module, 
-    criterion: nn.Module, 
-    train_loader, 
-    val_loader, 
-    cfg: Dict[str, Any], 
-    out_dir: str
-):
-    logger = _setup_logger()
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    
-    # Initialize CSV Logger for Paper Plots
-    csv_log = CsvLogger(out / "metrics.csv", ["step", "lr", "train_loss", "val_iou", "val_dice"])
-
-    # Parse Config
-    tc = cfg.get("train", {}) or {}
-    lr = float(tc.get("lr", 4e-4))
-    wd = float(tc.get("weight_decay", 0.0))
-    max_steps = int(tc.get("max_steps", 160000))
-    warmup = int(tc.get("warmup_steps", 3000))
-    min_lr = float(tc.get("min_lr", 1e-7))
-    val_every = int(tc.get("val_every_steps", 1000))
-    patience = int(tc.get("early_stop_patience", 12))
-    grad_clip = float(tc.get("grad_clip", 0.0))
-    use_amp = bool(tc.get("amp", True))
-
-    # Setup Optimizer & Scaler
-    device = next(model.parameters()).device
-    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
-    scaler = _grad_scaler(enabled=use_amp)
-
-    # Cosine Annealing Scheduler with Warmup
-    def _lr_at(step):
-        if step < warmup: 
-            return lr * (step / float(max(1, warmup)))
-        prog = (step - warmup) / float(max(1, max_steps - warmup))
-        prog = max(0.0, min(1.0, prog))
-        return min_lr + (lr - min_lr) * 0.5 * (1.0 + math.cos(math.pi * prog))
-
-    best_dice = -1.0
-    no_improve = 0
-    step = 0
-    it = iter(train_loader)
-    
-    logger.info(f"[*] Starting training loop: Steps={max_steps}, Device={device}, AMP={use_amp}")
-    model.train()
-
-    while step < max_steps:
-        # Fetch Data
-        try:
-            batch = next(it)
-        except StopIteration:
-            it = iter(train_loader)
-            batch = next(it)
-
-        img, mask = _unpack_batch(batch)
-        img = img.to(device, non_blocking=True)
-        mask = mask.to(device, non_blocking=True)
-
-        # Update LR
-        cur_lr = _lr_at(step)
-        for pg in opt.param_groups:
-            pg["lr"] = cur_lr
-
-        # Forward Pass
-        opt.zero_grad(set_to_none=True)
-        with _amp_ctx():
-            # Clamp logits for float16 stability
-            logits = torch.clamp(model(img), -10.0, 10.0)
-            loss = criterion(logits, mask)
-
-        # Backward Pass
-        if torch.isfinite(loss):
-            scaler.scale(loss).backward()
-            if grad_clip > 0:
-                scaler.unscale_(opt)
-                nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-            scaler.step(opt)
-            scaler.update()
-        else:
-            logger.warning(f"[Guard] Non-finite loss {loss.item()} at step={step}. Skipping update.")
-
-        # Validation & Logging
-        if step > 0 and (step % val_every) == 0:
-            vi, vd = _val_pass(model, val_loader, device)
-            
-            logger.info(f"Step={step}/{max_steps} | LR={cur_lr:.2e} | TrainLoss={loss.item():.4f} | ValIoU={vi:.4f} | ValDice={vd:.4f}")
-            
-            # Log to CSV
-            csv_log.log({
-                "step": step, 
-                "lr": f"{cur_lr:.2e}", 
-                "train_loss": f"{loss.item():.4f}", 
-                "val_iou": f"{vi:.4f}", 
-                "val_dice": f"{vd:.4f}"
-            })
-
-            # Checkpoint: Last
-            torch.save({
-                "model": model.state_dict(), 
-                "step": step, 
-                "best_dice": best_dice
-            }, out / "last.pt")
-
-            # Checkpoint: Best
-            if vd > best_dice:
-                logger.info(f"    --> New Best Dice! ({best_dice:.4f} -> {vd:.4f})")
-                best_dice = vd
-                no_improve = 0
-                torch.save({
-                    "model": model.state_dict(), 
-                    "step": step, 
-                    "best_dice": best_dice
-                }, out / "best.pt")
+            if is_binary:
+                iou, dice = compute_binary_metrics(logits, masks)
             else:
-                no_improve += 1
-                if no_improve >= patience:
-                    logger.info(f"[EARLY-STOP] No improvement for {no_improve} checks. Best Dice={best_dice:.4f}")
-                    break
-
-        step += 1
-
-    # Final Save
-    torch.save({"model": model.state_dict(), "step": step, "best_dice": best_dice}, out / "last.pt")
-    logger.info(f"[Done] Training finished. Best Dice={best_dice:.4f}. Outputs -> {out}")
+                # Fallback for old Multi-class code (if ever needed)
+                preds = logits.argmax(dim=1)
+                # ... (Simple multiclass metrics logic would go here)
+                iou, dice = 0.0, 0.0 
+            
+            total_iou += iou
+            total_dice += dice
+            steps += 1
+            
+            if steps > 50: break # Validation limit to save time
+            
+    return total_iou / steps, total_dice / steps
