@@ -155,7 +155,7 @@ df2023-xai/
 |       |   |-- run_xai.py             # Attribution generation
 |       |-- data/
 |       |   |-- dataset.py             # Loader with geometric augmentations
-|       |   `-- manifest.py            # CSV parsing & stratification
+|       |   |-- manifest.py            # CSV parsing & stratification
 |       |-- eval/
 |       |   |-- forensic.py            # Core Evaluation Logic for Phase 2
 |       |-- models/
@@ -163,12 +163,11 @@ df2023-xai/
 |       |   `-- segformer.py           # Custom headers (if applicable)
 |       |-- train/
 |       |   |-- loop.py                # Training & Validation loops
-|       |   `-- losses.py              # Hybrid Loss (CrossEntropy + SoftDice)
+|       |   |-- losses.py              # Hybrid Loss (CrossEntropy + SoftDice)
 |       `-- xai/                       # Explainability Engine
 |           |-- attention_rollout.py   # Robust Saliency & Attention approximation for Transformers
 |           |-- ig.py                  # Implementation of Integrated Gradients (IG)
 |           |-- gradcampp.py           # Implementation of Grad-CAM++
-|           `-- shap.py                # Wrapper for SHAP 
 |-- outputs/                           # Training artifacts (Gitignored)
 `-- requirements.txt                   # Verified dependencies
 
