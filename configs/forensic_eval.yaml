@@ -2,8 +2,6 @@
 project_root: .  # Relative path is safer for Git cloning
 
 models:
-  # The script uses 'load_model_from_dir' from factory.py
-  # It expects the FOLDER path (where best.pt and config_train.json live)
   - name: "SegFormer-B2 (Seed 1337)"
     path: "outputs/segformer_b2_v2/seed1337"
 
@@ -22,8 +20,8 @@ metrics:
   # Standard Forensic Metrics
   overlap: [iou, dice, pixel_f1]
 
-# --- Q1 Value Add: Robustness Analysis ---
-# This generates the "Perturbation Analysis" often requested by reviewers
+# --- Robustness Analysis ---
+# This generates the "Perturbation Analysis" 
 robustness:
   enabled: true
   jpeg_compression: [70, 90]  # Standard social media qualities
