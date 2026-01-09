@@ -108,6 +108,7 @@ SEED=1337 python -m df2023xai.cli.run_train \
 Evaluate the trained models on the **Scene-Disjoint Test Set** (Unseen Scenes), using standard segmentation metrics (IoU, Dice, Pixel-F1).
 
 ```bash
+# Run this for ALL 6 models (3 SegFormer, 3 U-Net).
 python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval.yaml
 ```
 Metrics include:
@@ -120,12 +121,12 @@ Metrics include:
 Generate attribution maps to visualize why the model flagged specific regions. This step requires a trained model checkpoint.
 
 ```bash
+# Run this for seed 1337 SegFormer and U-Net
 python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 ```
 **Supported Methods**: 
 - **Grad-CAM++** (Class Activation Mapping)
 - **Integrated Gradients** (Axiomatic Attribution)
-- **SHAP** (Game Theoretic Estimation)
 - **Attention Rollout** (Transformer Saliency)
 
 ## 📦 Repository Structure
