@@ -2,8 +2,25 @@
 project_root: .  # Relative path is safer for Git cloning
 
 models:
+  # --- SegFormer Runs ---
   - name: "SegFormer-B2 (Seed 1337)"
     path: "outputs/segformer_b2_v2/seed1337"
+
+  - name: "SegFormer-B2 (Seed 2027)"
+    path: "outputs/segformer_b2_v2/seed2027"
+
+  - name: "SegFormer-B2 (Seed 3141)"
+    path: "outputs/segformer_b2_v2/seed3141"
+
+  # --- U-Net Runs
+  - name: "U-Net-R34 (Seed 1337)"
+    path: "outputs/unet_r34/seed1337"
+  
+  - name: "U-Net-R34 (Seed 2027)"
+    path: "outputs/unet_r34/seed2027"
+
+  - name: "U-Net-R34 (Seed 3141)"
+    path: "outputs/unet_r34/seed3141"
 
 data:
   # CRITICAL: Point to the canonical Scene-Disjoint split
