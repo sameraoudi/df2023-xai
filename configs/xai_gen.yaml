@@ -1,25 +1,39 @@
 # configs/xai_gen.yaml
-data:
-  # Uses the same manifest as training
-  manifest_csv: "data/manifests/df2023_manifest.csv"
-  img_size: 512
-  # How many images to audit? (8 is usually enough for a figure)
-  sample_n: 8 
+project_root: .
 
 models:
-  # This is the output directory from training
-  - path: "outputs/segformer_b2_v2/seed1337"
+  # Representative SegFormer (Seed 1337)
+  - name: "SegFormer-B2"
+    path: "outputs/segformer_b2_v2/seed1337"
+
+  # Representative U-Net (Seed 1337) - Will run once trained
+  - name: "U-Net-ResNet34"
+    path: "outputs/unet_r34/seed1337"
+
+data:
+  # Use Test Set for "Unseen" Faithfulness Audit
+  manifest_csv: "data/manifests/splits/test_split.csv"
+  img_size: 512
+  sample_n: 8  # Keep this small (8 images is enough for the paper figure)
 
 methods:
+  # 1. High-Level Localization
   gradcampp:
     enabled: true
+    target_layer: "auto"
+
+  # 2. Pixel-Level Axiomatic Attribution
   ig:
     enabled: true
+    steps: 50
+
+  # 3. Transformer Sensitivity (Input x Gradient)
   attention_rollout:
-    enabled: true
+    enabled: true 
+
+  # 4. SHAP (DISABLED - Redundant & Computationally Expensive)
   shap:
-    enabled: true  # Now enabled since we fixed the code
+    enabled: false  
 
 out:
-  # Where to save the heatmaps
-  dir: "outputs/xai_audit/segformer_b2_seed1337"
+  dir: "outputs/xai_audit/"
