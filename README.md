@@ -126,7 +126,7 @@ python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 - **Grad-CAM++** (Class Activation Mapping)
 - **Integrated Gradients** (Axiomatic Attribution)
 - **SHAP** (Game Theoretic Estimation)
-- **Attention Rollout **(Transformer Saliency)
+- **Attention Rollout** (Transformer Saliency)
 
 ## 📦 Repository Structure
 
