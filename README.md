@@ -30,9 +30,9 @@ on the **DF2023** dataset, evaluating not only localization accuracy (IoU, Dice,
 
 - **Explainability**  
   Integrated XAI pipeline producing pixel-level attribution maps using:
-  - SHAP  
-  - Integrated Gradients  
-  - Grad-CAM++
+  - **Grad-CAM++** (Class Activation Mapping)
+  - **Integrated Gradients** (Axiomatic Attribution)
+  - **Attention Rollout** (Transformer Saliency)
 
 - **Robustness**  
   Training with a differentiable **Hybrid Loss** (Cross-Entropy + Soft Dice) and geometric data augmentations.
