@@ -1,0 +1,63 @@
+# configs/train_unet_r34_full.yaml
+project_root: /home/proj-samer/df2023-xai
+data:
+  # STRICT CONSISTENCY: Use exact same splits as SegFormer
+  manifest_csv: "data/manifests/df2023_manifest.csv"
+  train_manifest_csv: "data/manifests/splits/train_split.csv"
+  val_manifest_csv: "data/manifests/splits/val_split.csv"
+  test_manifest_csv: null
+  
+  img_size: 512
+  # CNNs use less VRAM than Transformers, so we can double the batch size for stability
+  batch_size: 8   
+  num_workers: 2
+  pin_memory: true
+  persistent_workers: true
+  tiny_subset_per_class: null
+
+models:
+  # Model Architecture: U-Net with ResNet34 Encoder
+  name: "unet_resnet34"
+  encoder_name: "resnet34"
+  encoder_weights: "imagenet"
+  classes: 1 
+  # Note: SegFormer specific params (e.g. use_smp) are not needed here
+
+train:
+  # Convergence: CNNs often converge faster, but we keep 100k to be safe
+  max_steps: 100000        
+  val_every_steps: 1000
+  log_every_steps: 1000
+  early_stop_patience: 20
+  
+  # --- CNN Specific Hyperparameters (Scientific Rationale) ---
+  # ResNet is robust; it needs a standard LR (3e-4), NOT the tiny Transformer LR (5e-6)
+  lr: 3e-4                 
+  min_lr: 1e-6
+  
+  # Standard Regularization for CNNs (less aggressive than SegFormer's 0.05)
+  weight_decay: 1e-2       
+  
+  # CNNs stabilize quickly, so 1000 warmup steps is sufficient
+  warmup_steps: 1000       
+  
+  grad_clip: 1.0
+  amp: false
+  accumulation_steps: 4    # Adjusted for batch_size 8 (Total effective batch ~32)
+  
+  # Seed injection (handled by CLI)
+  seed: "${env:SEED,1337}"
+  
+  ce_class_weights: [0.2, 0.8]
+  ignore_index: 255
+
+loss:
+  # STRICT CONSISTENCY: Must use the same Hybrid Loss
+  ce_class_weights: [0.2, 0.8]
+  use_dice: true
+  ignore_background_in_dice: true
+
+out:
+  # output path auto-formatted by seed
+  dir: ${project_root}/outputs/unet_r34_v2/seed${env:SEED,1337}
+  log_file: "stdout.log"
