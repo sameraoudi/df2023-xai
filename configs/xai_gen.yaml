@@ -7,7 +7,7 @@ data:
   sample_n: 8 
 
 models:
-  # This matches the output directory from your running training
+  # This is the output directory from training
   - path: "outputs/segformer_b2_v2/seed1337"
 
 methods:
