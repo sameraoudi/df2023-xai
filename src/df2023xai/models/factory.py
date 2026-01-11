@@ -2,8 +2,6 @@
 import torch
 import torch.nn as nn
 import segmentation_models_pytorch as smp
-import os
-import json
 
 def build_model(name: str, num_classes: int = 2, pretrained: bool = True, **kwargs) -> nn.Module:
     """
@@ -43,9 +41,10 @@ def build_model(name: str, num_classes: int = 2, pretrained: bool = True, **kwar
         weights = "imagenet" if pretrained else None
         print(f"[Factory] Building U-Net (Encoder: {encoder}, Weights: {weights})")
         
+        # FIX: pop encoder_name/weights from kwargs if they exist (from YAML) to avoid duplicates
         return smp.Unet(
-            encoder_name=encoder,
-            encoder_weights=weights,
+            encoder_name=kwargs.pop("encoder_name", encoder),
+            encoder_weights=kwargs.pop("encoder_weights", weights),
             in_channels=3,
             classes=num_classes,
             **kwargs
@@ -53,6 +52,11 @@ def build_model(name: str, num_classes: int = 2, pretrained: bool = True, **kwar
 
     else:
         raise ValueError(f"Architecture '{name}' not supported. Use 'segformer_bX' or 'unet_rXX'.")
+    
+# [APPEND TO src/df2023xai/models/factory.py]
+
+import os
+import json
 
 def load_model_from_dir(model_dir: str) -> nn.Module:
     """
