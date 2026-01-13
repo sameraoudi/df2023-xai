@@ -144,6 +144,14 @@ Measure how well a model "cheats" on seen scenes.
 ```bash
 python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval_random.yaml
 ```
+## Phase 3.C: Stratified Evaluation (Manipulation Type Analysis)
+Global metrics often hide specific failure modes. This phase decomposes performance by manipulation category (Splicing, Copy-Move, Inpainting) to validate the hypothesis that Inpainting is significantly harder to detect than Splicing due to the lack of high-frequency edge artifacts.
+
+```bash
+# Run stratified analysis on the Test Set
+# (Uses the first model defined in the config)
+python -m df2023xai.cli.run_stratified configs/xai_gen.yaml
+```
 
 ## Phase 4: XAI Faithfulness Audit
 
