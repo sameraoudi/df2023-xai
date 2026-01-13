@@ -127,16 +127,17 @@ SEED=1337 python -m df2023xai.cli.run_train \
 
 ## Phase 3.A: Forensic Evaluation
 
-Evaluate the trained models on the **Scene-Disjoint Test Set** (Unseen Scenes), using standard segmentation metrics (IoU, Dice, Pixel-F1).
+Evaluate the trained models on the **Scene-Disjoint Test Set** (Unseen Scenes), using standard segmentation metrics.
 
 ```bash
 # Run this for ALL 6 models (3 SegFormer, 3 U-Net).
 python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval.yaml
 ```
 Metrics include:
-- IoU
-- Dice
-- Pixel-F1
+- IoU (Intersection over Union)
+- Dice (F1-Score)
+- Precision (positive predictive value)
+- Recall (sensitivity)
 
 ## Phase 3.B: Random Evaluation
 
