@@ -82,7 +82,7 @@ python scripts/create_splits.py data/manifests/df2023_manifest.csv
 ```
 **Outputs**: train_split.csv, val_split.csv, test_split.csv in data/manifests/splits/.
 
-## Phase 2: Training (Predictive Models)
+## Phase 2.A: Training (Predictive Models)
 We use a Binary Hybrid Loss and enforce determinism for reproducibility.
 
 **Note 1**: For SegFormer (Transformer), you must enable the CUBLAS determinism flag to ensure attention map consistency.We support reproducible training with dynamic seeding. The pipeline uses Automatic Mixed Precision (AMP) and Distributed Data Parallel (compatible) loaders.
@@ -102,6 +102,38 @@ SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_unet_r34_full.yaml train
 ```
 **Outputs**: Logs and checkpoints (best.pt, last.pt, config_train.json) are saved to: outputs/<model_name>/seed<SEED>/
+
+## 🔬 Phase 2.B: Leakage Ablation Study (Background Leakage Control)
+
+To scientifically validate the necessity of the **Scene-Disjoint Protocol**, we conduct an ablation study using standard **Random Splits**.
+* **Hypothesis:** A model trained on random splits will achieve artificially high scores (>90%) by memorizing background textures ("Background Leakage"), whereas the Scene-Disjoint model measures true forensic generalization.
+
+### 1. Generate Random Splits
+Run this script to generate a shuffled partition that ignores scene IDs (simulating "flawed" standard practice).
+
+```bash
+# Create and run the random splitter
+python -c "
+import pandas as pd
+from sklearn.model_selection import train_test_split
+df = pd.read_csv('data/manifests/df2023_manifest.csv')
+train, temp = train_test_split(df, test_size=0.2, random_state=42, shuffle=True)
+val, test = train_test_split(temp, test_size=0.5, random_state=42, shuffle=True)
+train.to_csv('data/manifests/splits/train_split_random.csv', index=False)
+val.to_csv('data/manifests/splits/val_split_random.csv', index=False)
+test.to_csv('data/manifests/splits/test_split_random.csv', index=False)
+print('[OK] Random splits generated in data/manifests/splits/')
+"
+```
+
+### 2. Train Control Model
+Train a single SegFormer baseline on the random splits.
+
+```bash
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+SEED=1337 python -m df2023xai.cli.run_train \
+  --config configs/train_segformer_b2_random.yaml train
+```
 
 ## Phase 3: Forensic Evaluation
 
