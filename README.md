@@ -62,7 +62,7 @@ pip install -r requirements.txt
 
 The project requires the **DF2023** dataset. The project enforces a strict **Scene-Disjoint Protocol**. You must generate these splits **before** training to ensure no background scenes leak between Train, Val, and Test sets.
 
-### 1. Build Master Manifest
+### 1.1. Build Master Manifest
 Scan raw directories to generate the master index. A single "Master CSV" containing all file paths and metadata.
 
 ```bash
@@ -75,40 +75,42 @@ python -m df2023xai.cli.build_manifest \
   --out data/manifests/df2023_manifest.csv
 ```
 
-### 2. Generate Scene-Disjoint Partitions
+### 1.2. Generate Scene-Disjoint Partitions
 Transform the master manifest into forensic-ready disjoint splits.
 ```bash
 python scripts/create_splits.py data/manifests/df2023_manifest.csv
 ```
 **Outputs**: train_split.csv, val_split.csv, test_split.csv in data/manifests/splits/.
 
-## Phase 2.A: Training (Predictive Models)
+## Phase 2A: Training (Predictive Models)
 We use a Binary Hybrid Loss and enforce determinism for reproducibility.
 
 **Note 1**: For SegFormer (Transformer), you must enable the CUBLAS determinism flag to ensure attention map consistency.We support reproducible training with dynamic seeding. The pipeline uses Automatic Mixed Precision (AMP) and Distributed Data Parallel (compatible) loaders.
 
 **Note 2**: DL training is stochastic (random weight initialization, data shuffling). A single high score could be a statistical fluke (a "lucky initialization"). By training the identical model three times with different random starts, you calculate the Mean $\pm$ Standard Deviation (e.g., $84.2 \pm 0.3\%$). This proves your method is stable and consistently superior, not just lucky. The following seed numbers are mathematically arbitrary but culturally significant in computer science. They are chosen to be distinct and easily memorable: **1337**, **2027**, and **3141**.
-
+### 2A.1. Train SegFormer-B2 (Transformer)
 ```bash
 # Enable Deterministic Mode (Critical for Transformers)
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
-
-# Train SegFormer-B2 (Transformer)
+# Repeat for each seed
 SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_segformer_b2_full.yaml train
-
-# Train U-Net R34 (CNN Baseline)
+```
+### 2A.2. Train U-Net R34 (CNN Baseline)
+```bash
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+# Repeat for each seed
 SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_unet_r34_full.yaml train
 ```
 **Outputs**: Logs and checkpoints (best.pt, last.pt, config_train.json) are saved to: outputs/<model_name>/seed<SEED>/
 
-## Phase 2.B: Leakage Ablation Study (Background Leakage Control)
+## Phase 2B: Leakage Ablation Study (Background Leakage Control)
 
 To scientifically validate the necessity of the **Scene-Disjoint Protocol**, we conduct an ablation study using standard **Random Splits**.
 * **Hypothesis:** A model trained on random splits will achieve artificially high scores (>90%) by memorizing background textures ("Background Leakage"), whereas the Scene-Disjoint model measures true forensic generalization.
 
-### 1. Generate Random Splits
+### 2B.1. Generate Random Splits
 Run this script to generate a shuffled partition that ignores scene IDs (simulating "flawed" standard practice).
 
 ```bash
@@ -116,7 +118,7 @@ Run this script to generate a shuffled partition that ignores scene IDs (simulat
 python scripts/create_random_splits.py
 ```
 
-### 2. Train Control Model
+### 2B.2. Train Control Model
 Train a single SegFormer baseline on the random splits.
 
 ```bash
@@ -125,7 +127,7 @@ SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_segformer_b2_random.yaml train
 ```
 
-## Phase 3.A: Forensic Evaluation
+## Phase 3A: Forensic Evaluation
 
 Evaluate the trained models on the **Scene-Disjoint Test Set** (Unseen Scenes), using standard segmentation metrics.
 
@@ -139,13 +141,13 @@ Metrics include:
 - Precision (positive predictive value)
 - Recall (sensitivity)
 
-## Phase 3.B: Random Evaluation
+## Phase 3B: Random Evaluation
 
 Measure how well a model "cheats" on seen scenes.
 ```bash
 python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval_random.yaml
 ```
-## Phase 3.C: Stratified Evaluation (Manipulation Type Analysis)
+## Phase 3C: Stratified Evaluation (Manipulation Type Analysis)
 Global metrics often hide specific failure modes. This phase decomposes performance by manipulation category (Splicing, Copy-Move, Inpainting) to validate the hypothesis that Inpainting is significantly harder to detect than Splicing due to the lack of high-frequency edge artifacts.
 
 ```bash
