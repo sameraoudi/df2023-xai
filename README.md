@@ -175,23 +175,28 @@ python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 df2023-xai/
 |-- configs/                            # YAML configuration files
 |   |-- train_segformer.yaml            # SegFormer hyperparameters
+|   |-- train_segformer_random.yaml     # SegFormer hyperparameters for random splits
 |   |-- train_unet.yaml                 # U-Net hyperparameters
 |   |-- forensic_eval.yaml              # Forensic Evlauation settings
 |   `-- xai_gen.yaml                    # XAI settings
 |-- data/
 |   `-- manifests/
+|       `-- df2023_manifest.csv         # Main manifest
 |       `-- splits/                     # Official Train/Val/Test CSVs
-|           |-- train_v2.csv
-|           |-- val_v2.csv
-|           `-- test_v2.csv
+|           |-- train_split.csv
+|           |-- val_split.csv
+|           |-- train_split_random.csv 
+|           `-- val_split_random.csv
 |-- scripts/
-|   |-- create_splits.py               # Generate splits
+|   |-- create_splits.py               # Generate scene-disjoint splits
+|   |-- create_random_splits.py        # Generate random splits
 |-- src/
 |   `-- df2023xai/
 |       |-- cli/                       # Entry points
 |       |   |-- build_manifest.py      # Scans raw dataset to create master CSV
 |       |   |-- run_train.py           # Main training launcher
 |       |   |-- run_eval.py            # Testing & Metrics
+|       |   |-- run_stratified_eval.py # Run stratified analysis on the Test Set
 |       |   |-- run_xai.py             # Attribution generation
 |       |-- data/
 |       |   |-- dataset.py             # Loader with geometric augmentations
