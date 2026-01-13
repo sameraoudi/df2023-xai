@@ -103,7 +103,7 @@ SEED=1337 python -m df2023xai.cli.run_train \
 ```
 **Outputs**: Logs and checkpoints (best.pt, last.pt, config_train.json) are saved to: outputs/<model_name>/seed<SEED>/
 
-## 🔬 Phase 2.B: Leakage Ablation Study (Background Leakage Control)
+## Phase 2.B: Leakage Ablation Study (Background Leakage Control)
 
 To scientifically validate the necessity of the **Scene-Disjoint Protocol**, we conduct an ablation study using standard **Random Splits**.
 * **Hypothesis:** A model trained on random splits will achieve artificially high scores (>90%) by memorizing background textures ("Background Leakage"), whereas the Scene-Disjoint model measures true forensic generalization.
@@ -112,18 +112,8 @@ To scientifically validate the necessity of the **Scene-Disjoint Protocol**, we 
 Run this script to generate a shuffled partition that ignores scene IDs (simulating "flawed" standard practice).
 
 ```bash
-# Create and run the random splitter
-python -c "
-import pandas as pd
-from sklearn.model_selection import train_test_split
-df = pd.read_csv('data/manifests/df2023_manifest.csv')
-train, temp = train_test_split(df, test_size=0.2, random_state=42, shuffle=True)
-val, test = train_test_split(temp, test_size=0.5, random_state=42, shuffle=True)
-train.to_csv('data/manifests/splits/train_split_random.csv', index=False)
-val.to_csv('data/manifests/splits/val_split_random.csv', index=False)
-test.to_csv('data/manifests/splits/test_split_random.csv', index=False)
-print('[OK] Random splits generated in data/manifests/splits/')
-"
+# Run the random splitter
+python scripts/create_random_splits.py
 ```
 
 ### 2. Train Control Model
@@ -135,7 +125,7 @@ SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_segformer_b2_random.yaml train
 ```
 
-## Phase 3: Forensic Evaluation
+## Phase 3.A: Forensic Evaluation
 
 Evaluate the trained models on the **Scene-Disjoint Test Set** (Unseen Scenes), using standard segmentation metrics (IoU, Dice, Pixel-F1).
 
@@ -147,6 +137,13 @@ Metrics include:
 - IoU
 - Dice
 - Pixel-F1
+
+## Phase 3.B: Random Evaluation
+
+Measure how well a model "cheats" on seen scenes.
+```bash
+python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval_random.yaml
+```
 
 ## Phase 4: XAI Faithfulness Audit
 
