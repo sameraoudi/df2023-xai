@@ -1,0 +1,33 @@
+# configs/forensic_eval_random.yaml
+project_root: .  # Relative path is safer for Git cloning
+
+models:
+  - name: "SegFormer (Random Split)"
+    path: "outputs/segformer_b2_v2/seed1337"
+
+data:
+  # CRITICAL: Point to the random split
+  manifest_csv: "data/manifests/splits/test_split_random.csv"
+  img_size: 512
+  batch_size: 16  # Faster evaluation
+  num_workers: 2
+
+metrics:
+  # Sigmoid Threshold (Required for Binary Model)
+  threshold: 0.5 
+  # We only report the "Forgery" class (Index 1 is handled by the binary logic)
+  report_per_class: false 
+  # Standard Forensic Metrics
+  overlap: [iou, dice, precision, recall, pixel_f1]
+
+# --- Q1 Value Add: Robustness Analysis ---
+# This generates the "Perturbation Analysis" often requested by reviewers
+robustness:
+  enabled: true
+  jpeg_compression: [70, 90]  # Standard social media qualities
+  gaussian_noise: [0.01, 0.05] # Standard variance
+
+out:
+  dir: "outputs/eval_results_random/"
+  save_overlays: true     # Saves visual examples (Pred vs GT)
+  save_tables: true       # Saves CSVs for LaTeX
