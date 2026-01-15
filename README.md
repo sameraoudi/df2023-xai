@@ -56,6 +56,9 @@ cd df2023-xai
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Activate the environment
+source .venv/bin/activate
 ```
 # 🚀 Usage
 ## Phase 1: Data Preparation (Strict Disjoint Splits)
