@@ -156,7 +156,7 @@ Global metrics often hide specific failure modes. This phase decomposes performa
 ```bash
 # Run stratified analysis on the Test Set
 # (Uses the first model defined in the config)
-python -m df2023xai.cli.run_stratified configs/xai_gen.yaml
+python -m df2023xai.cli.run_stratified_eval configs/xai_gen.yaml
 ```
 
 ## Phase 4: XAI Faithfulness Audit
