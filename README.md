@@ -79,18 +79,23 @@ python -m df2023xai.cli.build_manifest \
 ```
 
 ### 1.2. Generate Scene-Disjoint Partitions
-Transform the master manifest into forensic-ready disjoint splits.
+Transform the master manifest into forensic-ready disjoint splits. This script enforces the **80/10/10 split ratio** (Train/Val/Test) defined in Section 3.1 of the paper, ensuring no source scene overlaps between partitions.
 ```bash
 python scripts/create_splits.py data/manifests/df2023_manifest.csv
 ```
 **Outputs**: train_split.csv, val_split.csv, test_split.csv in data/manifests/splits/.
 
 ## Phase 2A: Training (Predictive Models)
-We use a Binary Hybrid Loss and enforce determinism for reproducibility.
+We use a **Weighted Hybrid Loss** and enforce determinism for reproducibility.
 
-**Note 1**: For SegFormer (Transformer), you must enable the CUBLAS determinism flag to ensure attention map consistency.We support reproducible training with dynamic seeding. The pipeline uses Automatic Mixed Precision (AMP) and Distributed Data Parallel (compatible) loaders.
+### Reproducibility Configuration
+To strictly replicate the results in **Table 2** of the paper, ensure your configuration matches the following constraints:
+* **Precision**: FP32 (AMP Disabled) — *Crucial for Transformer stability.*
+* **Gradient Clipping**: Norm capped at 1.0.
+* **Loss Weights**: $\lambda_{WCE}=0.5, \lambda_{Dice}=0.5$.
 
-**Note 2**: DL training is stochastic (random weight initialization, data shuffling). A single high score could be a statistical fluke (a "lucky initialization"). By training the identical model three times with different random starts, you calculate the Mean $\pm$ Standard Deviation (e.g., $84.2 \pm 0.3\%$). This proves your method is stable and consistently superior, not just lucky. The following seed numbers are mathematically arbitrary but culturally significant in computer science. They are chosen to be distinct and easily memorable: **1337**, **2027**, and **3141**.
+**Note**: For SegFormer (Transformer), you must enable the CUBLAS determinism flag.
+
 ### 2A.1. Train SegFormer-B2 (Transformer)
 ```bash
 # Enable Deterministic Mode (Critical for Transformers)
@@ -129,6 +134,7 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8
 SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_segformer_b2_random.yaml train
 ```
+### Phase 3: Scientific Code Audit
 
 ## Phase 3A: Forensic Evaluation
 
