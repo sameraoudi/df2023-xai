@@ -203,12 +203,13 @@ df2023-xai/
 |   |-- create_random_splits.py        # Generate random splits
 |-- src/
 |   `-- df2023xai/
-|       |-- cli/                       # Entry points
-|       |   |-- build_manifest.py      # Scans raw dataset to create master CSV
-|       |   |-- run_train.py           # Main training launcher
-|       |   |-- run_eval.py            # Testing & Metrics
-|       |   |-- run_stratified_eval.py # Run stratified analysis on the Test Set
-|       |   |-- run_xai.py             # Attribution generation
+|       |-- cli/                         # Entry points
+|       |   |-- build_manifest.py        # Scans raw dataset to create master CSV
+|       |   |-- run_train.py             # Main training launcher
+|       |   |-- run_eval.py              # Testing & Metrics
+|       |   |-- run_stratified_eval.py   # Run stratified analysis on the Test Set
+|       |   |-- run_xai.py               # Attribution generation
+|       |   |-- run_coherence_metric.py  # XAI Audit
 |       |-- data/
 |       |   |-- dataset.py             # Loader with geometric augmentations
 |       |   |-- manifest.py            # CSV parsing & stratification
