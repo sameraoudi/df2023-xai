@@ -143,6 +143,7 @@ Metrics include:
 - Dice (F1-Score)
 - Precision (positive predictive value)
 - Recall (sensitivity)
+- False Positive Rate (FPR)
 
 ## Phase 3B: Random Evaluation
 
@@ -172,6 +173,13 @@ python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 - **Integrated Gradients** (Axiomatic Attribution)
 - **Attention Rollout** (Transformer Saliency)
 
+### Audit the decision surface for "Semantic Coherence" using Saliency Total Variation (TV).
+- Low TV = Coherent Object Focus (SegFormer)
+- High TV = Fragmented Edge Focus (U-Net)
+
+```bash
+python -m df2023xai.cli.run_coherence_metric --config configs/forensic_eval.yaml --limit 200
+```
 ## 📦 Repository Structure
 
 ```text
