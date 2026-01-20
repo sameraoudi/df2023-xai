@@ -1,11 +1,11 @@
-# DF2023-XAI: Explainable Deep Learning for Image Forgery Localization
+# DF2023-XAI: Auditing Image Forgery Localization via Scene-Disjoint Evaluation and XAI Faithfulness
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Framework: PyTorch](https://img.shields.io/badge/Framework-PyTorch-orange.svg)](https://pytorch.org/)
 [![Task: Forensic Segmentation](https://img.shields.io/badge/Task-Forensic_Segmentation-blue.svg)]()
 
 > **Official PyTorch Implementation** of the paper  
-> *“Explainable Deep Learning for Image Forgery Detection: Interpreting Manipulation Cues in DF2023”*
+> *“Beyond Accuracy: Auditing Image Forgery Localization via Scene-Disjoint Evaluation and XAI Faithfulness”*
 
 ---
 
