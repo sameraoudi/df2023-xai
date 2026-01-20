@@ -79,7 +79,7 @@ python -m df2023xai.cli.build_manifest \
 ```
 
 ### 1.2. Generate Scene-Disjoint Partitions
-Transform the master manifest into forensic-ready disjoint splits. This script enforces the **80/10/10 split ratio** (Train/Val/Test) defined in Section 3.1 of the paper, ensuring no source scene overlaps between partitions.
+Transform the master manifest into forensic-ready disjoint splits. This script enforces the **80/10/10 split ratio** (Train/Val/Test) defined in the paper, ensuring no source scene overlaps between partitions.
 ```bash
 python scripts/create_splits.py data/manifests/df2023_manifest.csv
 ```
@@ -89,7 +89,7 @@ python scripts/create_splits.py data/manifests/df2023_manifest.csv
 We use a **Weighted Hybrid Loss** and enforce determinism for reproducibility.
 
 ### Reproducibility Configuration
-To strictly replicate the results in **Table 2** of the paper, ensure your configuration matches the following constraints:
+To strictly replicate the results in **Table 2** of the paper:
 * **Precision**: FP32 (AMP Disabled) — *Crucial for Transformer stability.*
 * **Gradient Clipping**: Norm capped at 1.0.
 * **Loss Weights**: $\lambda_{WCE}=0.5, \lambda_{Dice}=0.5$.
@@ -134,7 +134,6 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8
 SEED=1337 python -m df2023xai.cli.run_train \
   --config configs/train_segformer_b2_random.yaml train
 ```
-### Phase 3: Scientific Code Audit
 
 ## Phase 3A: Forensic Evaluation
 
@@ -228,7 +227,7 @@ df2023-xai/
 |       |   |-- loop.py                # Training & Validation loops
 |       |   |-- losses.py              # Hybrid Loss (CrossEntropy + SoftDice)
 |       `-- xai/                       # Explainability Engine
-|           |-- attention_rollout.py   # Robust Saliency & Attention approximation for Transformers
+|           |-- attention_rollout.py   # Input-Gradient Saliency (Transformer Utility)
 |           |-- ig.py                  # Implementation of Integrated Gradients (IG)
 |           |-- gradcampp.py           # Implementation of Grad-CAM++
 |-- outputs/                           # Training artifacts (Gitignored)
