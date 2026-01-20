@@ -190,10 +190,11 @@ python -m df2023xai.cli.run_coherence_metric --config configs/forensic_eval.yaml
 ```text
 df2023-xai/
 |-- configs/                            # YAML configuration files
-|   |-- train_segformer.yaml            # SegFormer hyperparameters
+|   |-- train_segformer_full.yaml       # SegFormer hyperparameters
 |   |-- train_segformer_random.yaml     # SegFormer hyperparameters for random splits
-|   |-- train_unet.yaml                 # U-Net hyperparameters
+|   |-- train_unet_full.yaml            # U-Net hyperparameters
 |   |-- forensic_eval.yaml              # Forensic Evlauation settings
+|   |-- forensic_eval_random.yaml       # Random Evlauation settings
 |   `-- xai_gen.yaml                    # XAI settings
 |-- data/
 |   `-- manifests/
@@ -203,6 +204,12 @@ df2023-xai/
 |           |-- val_split.csv
 |           |-- train_split_random.csv 
 |           `-- val_split_random.csv
+|   |-- train/                         
+|   |   |-- images/                    # [Symlink to external DF2023_V15_train/COCO_V15]
+|   |   `-- masks/                     # [Symlink to external DF2023_V15_train/COCO_V15_GT]
+|   |-- val/                            
+|   |   |-- images/                    # [Symlink to external DF2023_V15_val/COCO_V15]
+|   |   `-- masks/                     # [Symlink to external DF2023_V15_val/COCO_V15_GT]
 |-- scripts/
 |   |-- create_splits.py               # Generate scene-disjoint splits
 |   |-- create_random_splits.py        # Generate random splits
