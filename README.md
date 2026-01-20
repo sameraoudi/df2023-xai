@@ -177,7 +177,7 @@ python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 **Supported Methods**: 
 - **Grad-CAM++** (Class Activation Mapping)
 - **Integrated Gradients** (Axiomatic Attribution)
-- **Attention Rollout** (Transformer Saliency)
+- **Input-Gradient Saliency** (Additional Utility)
 
 ### Audit the decision surface for "Semantic Coherence" using Saliency Total Variation (TV).
 - Low TV = Coherent Object Focus (SegFormer)
