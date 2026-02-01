@@ -1,35 +1,53 @@
-#!/usr/bin/env python3
 """
 ===============================================================================
-Script Name   : create_splits.py
-Description   : Generates Scene-Disjoint splits (Train/Val/Test).
-                Guarantees that no source scene appears in multiple splits.
+PROJECT      : DF2023-XAI 
+SCRIPT       : create_splits.py
+VERSION      : 1.1.0
+DESCRIPTION  : Scene-Disjoint dataset partitioning (Methodology Section 3.1).
+-------------------------------------------------------------------------------
+FUNCTIONALITY:
+    Partitions the DF2023 dataset into Train (80%), Val (10%), and Test (10%) 
+    subsets while guaranteeing scene isolation. By splitting on unique 
+    Source Scene IDs rather than individual images, it ensures that no 
+    background or lighting environment from training appears in the 
+    evaluation sets, forcing the model to learn forensic features rather 
+    than scene context.
 
-Usage        :
-                # Standard usage
-                python scripts/create_splits.py data/manifests/df2023_manifest.csv
-            
-                # Custom output directory
-                python scripts/create_splits.py data/manifests/df2023_manifest.csv --out-dir data/my_splits
+USAGE:
+    python scripts/create_splits.py data/manifests/df2023_manifest.csv
 
-Arguments      :
-                master_csv  : Path to the master manifest CSV file. Must contain a 'split' column.
-                --out-dir   : (Optional) Directory where split files will be saved. 
-                              Default: data/manifests/splits
+INPUTS       :
+    - data/manifests/df2023_manifest.csv (Master manifest)
 
-Author        : Dr. Samer Aoudi
-Affiliation   : Higher Colleges of Technology (HCT), UAE
-Role          : Assistant Professor & Division Chair (CIS)
-Email         : cybersecurity@sameraoudi.com
-ORCID         : 0000-0003-3887-0119
-Created On    : 2025-Dec-31
+OUTPUTS      :
+    - data/manifests/splits/train_split.csv
+    - data/manifests/splits/val_split.csv
+    - data/manifests/splits/test_split.csv
 
-License       : MIT License
-Citation      : If this code is used in academic work, please cite the
-                corresponding publication or acknowledge the author.
+AUTHOR       : Dr. Samer Aoudi
+AFFILIATION  : Higher Colleges of Technology (HCT), UAE
+ROLE         : Assistant Professor & Division Chair (CIS)
+EMAIL        : cybersecurity@sameraoudi.com
+ORCID        : 0000-0003-3887-0119
+CREATED      : 2026-01-11
+UPDATED      : 2026-02-01
 
-Dependencies  :
-- pandas
+LICENSE      : MIT License
+CITATION     : If used in academic research, please cite:
+               Aoudi, S. (2026). "Beyond Accuracy — A Risk-Centric 
+               Comparative Evaluation of Deep Intrusion Detection Systems."
+
+DESIGN NOTES:
+    - Leakage Prevention: Implements scene-level isolation to ensure 
+      geographical/environmental independence between splits.
+    - Robust Parsing: Uses a multi-tiered Scene ID extractor that parses 
+      image_id strings as a fallback for missing metadata.
+    - Statistical Integrity: Uses a fixed seed (1337) and a two-stage 
+      train_test_split to maintain a strict 80/10/10 ratio on unique scenes.
+
+DEPENDENCIES:
+    - Python >= 3.10
+    - pandas, numpy, scikit-learn
 ===============================================================================
 """
 
