@@ -1,6 +1,6 @@
 """
 ===============================================================================
-PROJECT      : DF2023-XAI (Explainable AI for Deepfake Detection)
+PROJECT      : DF2023-XAI 
 SCRIPT       : run_train.py
 VERSION      : 1.1.0
 DESCRIPTION  : Training launcher for deepfake segmentation models.
@@ -12,9 +12,15 @@ FUNCTIONALITY:
     Supports resuming from checkpoints for continuous research cycles.
 
 USAGE:
+    SegFormer
     SEED=1337 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
     SEED=2027 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
     SEED=3141 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
+    Unet
+    SEED=1337 python -m df2023xai.cli.run_train --config configs/train_unet_r34_full.yaml train
+    SEED=2027 python -m df2023xai.cli.run_train --config configs/train_unet_r34_full.yaml train
+    SEED=3141 python -m df2023xai.cli.run_train --config configs/train_unet_r34_full.yaml train
+    
     
 ARGUMENTS:
     --config      : (File) Path to the YAML training configuration.
