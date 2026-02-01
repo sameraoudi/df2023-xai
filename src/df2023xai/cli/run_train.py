@@ -12,14 +12,18 @@ FUNCTIONALITY:
     Supports resuming from checkpoints for continuous research cycles.
 
 USAGE:
-    SegFormer
+    1. Enable Deterministic Mode (Critical for Transformers)
+    export CUBLAS_WORKSPACE_CONFIG=:4096:8
+    2a. Train SegFormer-B2 (Transformer)
     SEED=1337 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
     SEED=2027 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
     SEED=3141 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
-    Unet
+    2b. Train U-Net R34 (CNN Baseline)
     SEED=1337 python -m df2023xai.cli.run_train --config configs/train_unet_r34_full.yaml train
     SEED=2027 python -m df2023xai.cli.run_train --config configs/train_unet_r34_full.yaml train
     SEED=3141 python -m df2023xai.cli.run_train --config configs/train_unet_r34_full.yaml train
+    2c. Train Control Model
+    SEED=1337 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_random.yaml train
     
     
 ARGUMENTS:
