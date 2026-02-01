@@ -1,66 +1,54 @@
 """
 ===============================================================================
-Script Name   : run_train.py
-Description   : Universal training launcher for DF2023 Forensic Segmentation.
-                
-                Features:
-                - Dynamic Model Loading (SegFormer / U-Net via SMP)
-                - Differentiable Hybrid Loss (CE + SoftDice)
-                - Automatic Mixed Precision (AMP)
-                - YAML-based Configuration with Environment Variable support
-                - Augmentation Pipeline integration
+PROJECT      : DF2023-XAI (Explainable AI for Deepfake Detection)
+SCRIPT       : run_train.py
+VERSION      : 1.1.0
+DESCRIPTION  : Training launcher for deepfake segmentation models.
+-------------------------------------------------------------------------------
+FUNCTIONALITY:
+    Initializes the training environment, including global seeds, logging, 
+    and data loaders. It dynamically builds models via a factory pattern and 
+    executes the training loop using a Hybrid Forensic Loss (BCE + Dice).
+    Supports resuming from checkpoints for continuous research cycles.
 
-How to Run    : 
-                # Train SegFormer
-                # Run for SEEDS 1337, 2027, and 3141
-                SEED=1337 python -m df2023xai.cli.run_train \
-                    --config configs/train_segformer_b2_full.yaml train
+USAGE:
+    SEED=1337 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
+    SEED=2027 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
+    SEED=3141 python -m df2023xai.cli.run_train --config configs/train_segformer_b2_full.yaml train
+    
+ARGUMENTS:
+    --config      : (File) Path to the YAML training configuration.
+    --resume      : (File) Optional path to a .pt checkpoint for weight loading.
+    train         : Sub-command to initiate the training loop.
 
-                # Train U-Net
-                # Run for SEEDS 1337, 2027, and 3141
-                SEED=1337 python -m df2023xai.cli.run_train \
-                    --config configs/train_unet_r34_full.yaml train
+AUTHOR       : Dr. Samer Aoudi
+AFFILIATION  : Higher Colleges of Technology (HCT), UAE
+ROLE         : Assistant Professor & Division Chair (CIS)
+EMAIL        : cybersecurity@sameraoudi.com
+ORCID        : 0000-0003-3887-0119
+CREATED      : 2026-01-10
+UPDATED      : 2026-02-01
 
-Inputs        :
-                --config : Path to YAML configuration file.
+LICENSE      : MIT License
+CITATION     : If used in academic research, please cite:
+               Aoudi, S. (2026). "Beyond Accuracy — A Risk-Centric 
+               Comparative Evaluation of Deep Intrusion Detection Systems."
 
-Outputs       :
-                - Model Checkpoints (best.pt, last.pt) in outputs/ dir.
-                - Training Logs (stdout.log).
-                - Resolved Config JSON (config_train.json).
+DESIGN NOTES:
+    - Model Factory: Decouples the launcher from specific architectures; 
+      model selection is handled via the 'models' key in YAML.
+    - Loss Formulation: Implements Equation (2) and (3) from the paper, 
+      balancing Binary Cross-Entropy (BCE) and Dice Loss.
+    - Variable Resolution: Supports ${project_root} and ${env:VAR,default} 
+      placeholders within YAML configurations for path flexibility.
+    - Robustness: Filters specific CUDA/NLL-Loss user warnings to keep 
+      stdout clean during high-epoch training.
 
-Author        : Dr. Samer Aoudi
-Affiliation   : Higher Colleges of Technology (HCT), UAE
-Role          : Assistant Professor & Division Chair (CIS)
-Email         : cybersecurity@sameraoudi.com
-ORCID         : 0000-0003-3887-0119
-Created On    : 2025-Dec-31
-
-License       : MIT License
-Citation      : If this code is used in academic work, please cite the
-                corresponding publication or acknowledge the author.
-
-Design Notes  :
-- Reproducibility: Enforces global seeding (Python, NumPy, Torch) before
-  initializing data loaders.
-- Optimization: Uses 'pin_memory' and 'persistent_workers' for high-throughput
-  GPU feeding (verified 97% utilization on L40).
-- Safety: Dumps the exact configuration used (with resolved paths) to JSON
-  for audit trails.
-
-Dependencies  :
-- Python >= 3.10
-- torch, segmentation_models_pytorch (smp)
-- df2023xai (Internal package)
+DEPENDENCIES:
+    - Python >= 3.10
+    - torch, yaml, omegaconf
+    - df2023xai.models.factory, df2023xai.train.loop (Internal)
 ===============================================================================
-"""
-# src/df2023xai/cli/run_train.py
-# ruff: noqa
-# mypy: ignore-errors
-"""
-Launcher for segmentation training.
-Corrected to use dynamic model factory and respect config parameters.
-Revised to support resuming from checkpoint.
 """
 
 from __future__ import annotations
