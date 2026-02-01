@@ -1,52 +1,54 @@
 """
 ===============================================================================
-Script Name   : run_forensic_eval.py
-Description   : CLI entry point for Forensic Evaluation (Phase 2).
-                
-                Functionality:
-                - Loads trained models (SegFormer/U-Net) from checkpoints.
-                - Runs inference on the Test Set (defined in manifest).
-                - Computes standard forensic metrics:
-                    * IoU (Intersection over Union)
-                    * Dice Coefficient (F1 Score)
-                    * Pixel-level Precision/Recall
-                - Generates "metrics_summary.csv" for the paper.
+PROJECT      : DF2023-XAI
+SCRIPT       : run_forensic_eval.py
+VERSION      : 1.0.0
+DESCRIPTION  : Comparative forensic evaluation runner for Deepfake models.
+-------------------------------------------------------------------------------
+FUNCTIONALITY:
+    Executes a multi-model evaluation pipeline based on a YAML configuration.
+    It computes forensic metrics (e.g., pixel-level detection accuracy, 
+    localization precision) across specified models, supports sampling for 
+    quick audits, and generates aggregated CSV reports and visual summaries.
 
-How to Run    :
-                # Full Evaluation (Recommended for Paper)
-                python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval.yaml
+USAGE:
+    python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval.yaml
 
-Inputs        :
-                --config : YAML config defining models and test data.
-                           (Must contain 'models' list and 'data.manifest_csv')
+CONFIG SCHEMA (YAML) REQUIREMENT:
+    models:
+      - {name: "ModelA", path: "path/to/weights.pt"}
+    data:
+      manifest_csv: "data/manifests/df2023_manifest.csv"
+      sample_n: 500  # Set to 0 for full test set
+    out:
+      dir: "outputs/eval_results"
 
-Outputs       :
-                - metrics_summary.csv : Table comparing all models.
-                - detailed_report.csv : Per-image scores (optional).
+AUTHOR       : Dr. Samer Aoudi
+AFFILIATION  : Higher Colleges of Technology (HCT), UAE
+ROLE         : Assistant Professor & Division Chair (CIS)
+EMAIL        : cybersecurity@sameraoudi.com
+ORCID        : 0000-0003-3887-0119
+CREATED      : 2026-01-05
+UPDATED      : 2026-02-01
 
-Author        : Dr. Samer Aoudi
-Affiliation   : Higher Colleges of Technology (HCT), UAE
-Role          : Assistant Professor & Division Chair (CIS)
-Email         : cybersecurity@sameraoudi.com
-ORCID         : 0000-0003-3887-0119
-Created On    : 2025-Dec-31
+LICENSE      : MIT License
+CITATION     : If used in academic research, please cite:
+               Aoudi, S. (2026). "Beyond Accuracy — A Risk-Centric 
+               Comparative Evaluation of Deep Intrusion Detection Systems."
 
-License       : MIT License
-Citation      : If this code is used in academic work, please cite the
-                corresponding publication or acknowledge the author.
+DESIGN NOTES:
+    - Configuration-Driven: Uses OmegaConf for flexible, nested parameters.
+    - Reproducibility: Enforces a global seed (default: 1337) via internal 
+      utility modules to ensure consistent sampling.
+    - Hardware-Aware: Explicitly prefers CUDA for high-throughput evaluation.
+    - Error Handling: Implements full traceback printing for fatal errors to 
+      assist in debugging complex model loading issues.
 
-Design Notes  :
-- Benchmarking: Supports evaluating multiple models in one run to generate
-  comparative tables directly.
-- Sampling: Set 'sample_n: 0' in YAML to evaluate the ENTIRE test set.
-  For debugging, use 'sample_n: 64'.
-- Reproducibility: Enforces seeding even during inference to ensure
-  consistent data sampling.
-
-Dependencies  :
-- Python >= 3.10
-- typer, omegaconf
-- df2023xai.eval.forensic (Internal)
+DEPENDENCIES:
+    - Python >= 3.10
+    - typer, omegaconf, pathlib
+    - df2023xai.eval.forensic (Internal)
+    - df2023xai.utils.seed (Internal)
 ===============================================================================
 """
 
