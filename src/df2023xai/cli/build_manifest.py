@@ -1,6 +1,6 @@
 """
 ===============================================================================
-PROJECT      : DF2023-XAI (Explainable AI for Deepfake Detection)
+PROJECT      : DF2023-XAI
 SCRIPT       : build_manifest.py
 VERSION      : 1.0.0
 DESCRIPTION  : CLI entry point for generating the master dataset manifest.
