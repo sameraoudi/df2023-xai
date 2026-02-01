@@ -12,11 +12,14 @@ FUNCTIONALITY:
     quick audits, and generates aggregated CSV reports and visual summaries.
 
 USAGE:
+    Run this for ALL 6 models (3 SegFormer, 3 U-Net).
     python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval.yaml
+    Random Evaluation
+    python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval_random.yaml
 
 CONFIG SCHEMA (YAML) REQUIREMENT:
     models:
-      - {name: "ModelA", path: "path/to/weights.pt"}
+      - {name: "ModelA", path: "path/to/best.pt"}
     data:
       manifest_csv: "data/manifests/df2023_manifest.csv"
       sample_n: 500  # Set to 0 for full test set
