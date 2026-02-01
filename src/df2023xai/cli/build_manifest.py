@@ -1,56 +1,60 @@
 """
 ===============================================================================
-Script Name   : build_manifest.py
-Description   : CLI entry point for generating the master dataset manifest.
-                This script scans raw image and mask directories, enforces
-                strictly one-to-one pairing based on filenames, and generates
-                a "Master CSV" containing all metadata (manipulation types,
-                stratification details) prior to splitting.
+PROJECT      : DF2023-XAI (Explainable AI for Deepfake Detection)
+SCRIPT       : build_manifest.py
+VERSION      : 1.0.0
+DESCRIPTION  : CLI entry point for generating the master dataset manifest.
+-------------------------------------------------------------------------------
+FUNCTIONALITY:
+    Scans raw image and mask directories (supporting symlinks), parses 
+    filenames for manipulation metadata, and aggregates paths into a 
+    "Master CSV". This serves as the single source of truth for the 
+    training and validation pipelines.
 
-How to Run    :
-                python -m df2023xai.cli.build_manifest run \
-                    --images /path/to/train/images \
-                    --masks /path/to/train/masks \
-                    --images-val /path/to/val/images \
-                    --masks-val /path/to/val/masks \
-                    --out data/manifests/df2023_manifest.csv
+USAGE:
+    python -m df2023xai.cli.build_manifest run \
+        --images /path/to/train/images \
+        --masks /path/to/train/masks \
+        --images-val /path/to/val/images \
+        --masks-val /path/to/val/masks \
+        --out data/manifests/df2023_manifest.csv \
+        [--enforce-one-to-one | --no-enforce-one-to-one]
 
-Inputs        :
-                --images      : Path to training images directory
-                --masks       : Path to training masks directory
-                --images-val  : Path to validation images directory
-                --masks-val   : Path to validation masks directory
+ARGUMENTS:
+    --images      : (Dir) Path to training images (symlinks allowed).
+    --masks       : (Dir) Path to training masks (symlinks allowed).
+    --images-val  : (Dir) Path to validation images.
+    --masks-val   : (Dir) Path to validation masks.
+    --out         : (File) Target path for the generated Master CSV.
+    --enforce-one-to-one : (Bool) If True (default), script exits on 
+                           image/mask count mismatch.
 
-Outputs       :
-                --out         : CSV file containing the aggregated manifest
-                                (e.g., data/manifests/df2023_manifest.csv)
+AUTHOR       : Dr. Samer Aoudi
+AFFILIATION  : Higher Colleges of Technology (HCT), UAE
+ROLE         : Assistant Professor & Division Chair (CIS)
+EMAIL        : cybersecurity@sameraoudi.com
+ORCID        : 0000-0003-3887-0119
+CREATED      : 2025-12-31
+UPDATED      : 2026-02-01
 
-Author        : Dr. Samer Aoudi
-Affiliation   : Higher Colleges of Technology (HCT), UAE
-Role          : Assistant Professor & Division Chair (CIS)
-Email         : cybersecurity@sameraoudi.com
-ORCID         : 0000-0003-3887-0119
-Created On    : 2025-Dec-31
+LICENSE      : MIT License
+CITATION     : If used in academic research, please cite:
+               Aoudi, S. (2026). "Beyond Accuracy — A Risk-Centric 
+               Comparative Evaluation of Deep Intrusion Detection Systems."
 
-License       : MIT License
-Citation      : If this code is used in academic work, please cite the
-                corresponding publication or acknowledge the author.
+DESIGN NOTES:
+    - Ground Truth Generator: Centralizes metadata prior to splitting.
+    - Robustness: Uses absolute imports for cross-context execution.
+    - Safety: Gracefully handles RuntimeErrors and fatal exceptions 
+      with distinct exit codes (1 and 2).
+    - Automation: Automatically handles directory creation for the output path.
 
-Design Notes  :
-- This script serves as the "Ground Truth" generator. It does not perform
-  splitting; it only aggregates file paths and metadata.
-- Strict 1:1 Image-to-Mask mapping is enforced to prevent data alignment
-  errors during training.
-- Does not modify source files; safe to run on read-only mounts.
-- Automatically creates the output directory if it does not exist.
-
-Dependencies  :
-- Python >= 3.10
-- typer
-- df2023xai.data.manifest (Internal Module)
+DEPENDENCIES:
+    - Python >= 3.10
+    - typer
+    - df2023xai.data.manifest (Internal)
 ===============================================================================
 """
-
 from __future__ import annotations
 
 import sys
