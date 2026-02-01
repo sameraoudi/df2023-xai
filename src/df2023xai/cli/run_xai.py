@@ -1,47 +1,49 @@
 """
 ===============================================================================
-Script Name   : run_xai.py
-Description   : CLI entry point for Phase 3: Explainable AI (XAI) Generation.
-                
-                Functionality:
-                - Loads trained models (SegFormer/U-Net) and runs inference.
-                - Generates Attribution Maps using 4 supported methods:
-                    1. Grad-CAM++ (Localization)
-                    2. Integrated Gradients (Axiomatic)
-                    3. Attention Rollout / Saliency (Transformer Focus)
-                    4. SHAP (Game Theoretic)
-                - Produces composite panels: [Original | Mask | Heatmap].
+PROJECT      : DF2023-XAI
+SCRIPT       : run_xai.py
+VERSION      : 1.0.0
+DESCRIPTION  : XAI interpretation launcher for Deepfake segmentation models.
+-------------------------------------------------------------------------------
+FUNCTIONALITY:
+    Generates visual explanations for model predictions using multiple XAI 
+    techniques. It supports Grad-CAM++, Integrated Gradients (IG), Attention 
+    Rollout, and SHAP. The script produces JET-colormapped heatmaps overlaid 
+    on source images to audit where the model "looks" when identifying forgeries.
 
-How to Run    :
-                python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
+USAGE:
+    python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 
-Inputs        :
-                --config : YAML config defining models, methods, and samples.
+ARGUMENTS:
+    --config      : (File) Path to the XAI configuration (YAML) specifying 
+                    models, target samples, and enabled XAI methods.
 
-Outputs       :
-                - outputs/xai_panels/ (PNG images).
+AUTHOR       : Dr. Samer Aoudi
+AFFILIATION  : Higher Colleges of Technology (HCT), UAE
+ROLE         : Assistant Professor & Division Chair (CIS)
+EMAIL        : cybersecurity@sameraoudi.com
+ORCID        : 0000-0003-3887-0119
+CREATED      : 2026-01-15
+UPDATED      : 2026-02-01
 
-Author        : Dr. Samer Aoudi
-Affiliation   : Higher Colleges of Technology (HCT), UAE
-Role          : Assistant Professor & Division Chair (CIS)
-Email         : cybersecurity@sameraoudi.com
-ORCID         : 0000-0003-3887-0119
-Created On    : 2025-Dec-31
+LICENSE      : MIT License
+CITATION     : If used in academic research, please cite:
+               Aoudi, S. (2026). "Beyond Accuracy — A Risk-Centric 
+               Comparative Evaluation of Deep Intrusion Detection Systems."
 
-License       : MIT License
-Citation      : If this code is used in academic work, please cite the
-                corresponding publication or acknowledge the author.
+DESIGN NOTES:
+    - Visualization: Uses a 60/40 alpha blend between source RGB and JET 
+      heatmaps. Robust min-max normalization handles faint saliency signals.
+    - Diversity: Supports both gradient-based (Grad-CAM++, IG) and 
+      perturbation-based (SHAP) explanations.
+    - Safety: Implements fallbacks for SHAP and Grad-CAM++ to prevent 
+      crashes during batch processing of diverse model architectures.
+    - Audit Trail: Outputs an 'xai_summary.json' alongside PNG panels.
 
-Design Notes  :
-- Visualization: Uses 'Jet' colormap for high-contrast heatmaps.
-- Normalization: Per-image min-max normalization.
-- Lazy Imports: XAI methods are imported inside the loop to prevent
-  circular dependencies and reduce startup time.
-
-Dependencies  :
-- Python >= 3.10
-- torch, numpy, PIL, matplotlib
-- df2023xai (Internal)
+DEPENDENCIES:
+    - Python >= 3.10
+    - torch, PIL, opencv-python, omegaconf
+    - df2023xai.models.factory, df2023xai.xai.* (Internal)
 ===============================================================================
 """
 
@@ -49,6 +51,8 @@ import os, json, sys, typer, torch
 from omegaconf import OmegaConf
 from PIL import Image
 import numpy as np
+import cv2
+import torch
 from ..models.factory import load_model_from_dir
 from ..data.dataset import ForgerySegDataset
 # Import the fixed XAI function
@@ -57,17 +61,39 @@ from ..xai.shap import shap_or_fallback
 app = typer.Typer(add_completion=False)
 
 def _to_pil_heatmap(img_t: torch.Tensor, heat: torch.Tensor):
-    # Normalize Image for background
-    rgb = (img_t.clone().clamp(0,1).permute(1,2,0).cpu().numpy() * 255).astype(np.uint8)
+    """
+    Robust Visualization using JET Colormap.
+    img_t: (3, H, W) tensor, [0, 1]
+    heat: (H, W) tensor, [0, 1]
+    """
+    # 1. Prepare Background Image (RGB)
+    # Convert Tensor [0,1] -> Numpy [0,255] uint8
+    img_np = (img_t.clone().clamp(0,1).permute(1,2,0).cpu().numpy() * 255).astype(np.uint8)
     
-    # Normalize Heatmap to Red Overlay
-    h = (heat.clone().clamp(0,1).cpu().numpy() * 255).astype(np.uint8)
-    # Create Red channel overlay: (R=Heat, G=0, B=0)
-    h_colored = np.stack([h, np.zeros_like(h), np.zeros_like(h)], axis=-1)
+    # 2. Prepare Heatmap
+    # Normalize heatmap strictly to [0, 255] for visualization
+    h_np = heat.clone().detach().cpu().numpy()
     
-    # Blend: 60% Original + 40% Heatmap
-    out = (0.6 * rgb + 0.4 * h_colored).clip(0,255).astype(np.uint8)
-    return Image.fromarray(out)
+    # Robust Min-Max normalization to handle faint signals
+    if h_np.max() > h_np.min():
+        h_np = (h_np - h_np.min()) / (h_np.max() - h_np.min())
+    else:
+        h_np = np.zeros_like(h_np) # Flat signal
+        
+    h_uint8 = (h_np * 255).astype(np.uint8)
+
+    # 3. Apply JET Colormap (Blue=Low, Red=High)
+    # OpenCV expects BGR for the underlying image, so we convert slightly for the op
+    img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+    heatmap_bgr = cv2.applyColorMap(h_uint8, cv2.COLORMAP_JET)
+
+    # 4. Blend (60% Source + 40% Heatmap)
+    overlay_bgr = cv2.addWeighted(img_bgr, 0.6, heatmap_bgr, 0.4, 0)
+    
+    # 5. Convert back to RGB for PIL
+    overlay_rgb = cv2.cvtColor(overlay_bgr, cv2.COLOR_BGR2RGB)
+    
+    return Image.fromarray(overlay_rgb)
 
 def _run_impl(cfg_path: str):
     print(f"[XAI] Loading config: {cfg_path}")
