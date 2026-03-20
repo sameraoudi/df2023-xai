@@ -8,7 +8,7 @@ models:
 
   # Representative U-Net (Seed 1337) - Will run once trained
   - name: "U-Net-ResNet34"
-    path: "outputs/unet_r34/seed1337"
+    path: "outputs/unet_r34_v2/seed1337"
 
 data:
   # Use Test Set for "Unseen" Faithfulness Audit
