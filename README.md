@@ -282,7 +282,7 @@ dfx-build-manifest run \
 #### Step 1c — Add Scene IDs
 
 ```bash
-python scripts/preprocess_add_scene_ids.py \
+python scripts/prepare_data.py add-scene-ids \
   --manifest data/manifests/df2023_v15_manifest.csv
 ```
 
@@ -291,16 +291,9 @@ Parses the `image_id` trailing segment to add a `source_scene_id` column. Overwr
 #### Step 1d — Generate Scene-Disjoint Splits (CANONICAL)
 
 ```bash
-python -m df2023xai.cli.split_scenes \
+python scripts/prepare_data.py scene-splits \
   --manifest data/manifests/df2023_v15_manifest.csv \
-  --outdir   data/manifests/splits \
   --seed     1337
-```
-
-Or equivalently:
-
-```bash
-python scripts/generate_scene_splits.py
 ```
 
 **Flags:** `--manifest`, `--outdir`, `--seed` (default: 1337), `--train` (0.8), `--val` (0.1), `--test` (0.1)
