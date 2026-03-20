@@ -1,0 +1,14 @@
+project_root: /home/proj-samer/df2023-xai
+data:
+  train_images: /home/proj-samer/Desktop/Data2/DF2023_train/DF2023_V15_train/COCO_V15
+  train_masks:  /home/proj-samer/Desktop/Data2/DF2023_train/DF2023_V15_train/COCO_V15_GT
+  val_images:   /home/proj-samer/Desktop/Data2/DF2023_val/DF2023_V15_val/COCO_V15
+  val_masks:    /home/proj-samer/Desktop/Data2/DF2023_val/DF2023_V15_val/COCO_V15_GT
+  dest: ${project_root}/data
+manifest:
+  out_csv: ${project_root}/data/manifests/df2023_v15_manifest.csv
+  split_ratio: [0.9, 0.1] # assumed already split; used only for sanity
+  enforce_one_to_one: true
+checks:
+  sample_n: 24
+  out_dir: ${project_root}/reports/tables
