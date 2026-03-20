@@ -8,7 +8,7 @@
 
 > **Official PyTorch implementation** of the paper  
 > *"Beyond Accuracy: Auditing Image Forgery Localization via Scene-Disjoint Evaluation and XAI Faithfulness"*  
-> Aoudi, S., et al. (2026). IEEE Access.
+> Aoudi, S., Saleel, A. P., Al Barghuthi, N., & Alamir, O. (2026). TBD.
 
 ---
 
@@ -21,7 +21,6 @@
 5. [Installation](#installation)
 6. [Dataset Setup](#dataset-setup)
 7. [Experiment Pipeline](#experiment-pipeline)
-   - [Phase 0: Environment Verification](#phase-0-environment-verification)
    - [Phase 1: Data Preparation](#phase-1-data-preparation)
    - [Phase 2: Model Training](#phase-2-model-training)
    - [Phase 3: Forensic Evaluation](#phase-3-forensic-evaluation)
@@ -120,24 +119,23 @@ df2023-xai/
 │   ├── val/images/                      # → symlink to COCO_V15 val
 │   └── val/masks/                       # → symlink to COCO_V15_GT val
 ├── scripts/
-│   ├── — Data preparation —
-│   ├── prepare_data.py
-│   ├── — Paper statistics pipeline (Steps 1–5) —
-│   ├── paper_stats.py
-│   ├── — Supporting analyses —
-│   ├── compute_per_sample_iou.py
-│   ├── validate_randomization_sanity.py
-│   ├── validate_coherence_early_check.py
-│   ├── experiment_freq_augmentation.py
-│   ├── — Manuscript figures/tables —
-│   ├── generate_figure3.py
-│   ├── generate_table_dataset_distribution.py
-│   ├── generate_table_hyperparams.py
-│   └── — Launchers —
-│       ├── run_paper_stats.py
-│       ├── run_paper_stats.sh
-│       ├── run_post_step2.sh
-│       └── run_additions.sh
+│   ├── prepare_data.py                  # Unified data preparation pipeline
+│   │                                    #   subcommands: add-scene-ids, scene-splits,
+│   │                                    #                random-splits, all
+│   ├── paper_stats.py                   # Unified paper statistics pipeline (Steps 1–5)
+│   │                                    #   subcommands: verify-checkpoints, compute-tv,
+│   │                                    #                bootstrap-ci, metric-std,
+│   │                                    #                directional-check, run-all
+│   ├── run_analyses.py                  # Unified supporting analyses pipeline
+│   │                                    #   subcommands: per-sample-iou, sanity-check,
+│   │                                    #                coherence-check, freq-experiment,
+│   │                                    #                run-all
+│   ├── generate_manuscript.py           # Unified manuscript figure/table generator
+│   │                                    #   subcommands: figure3, table-dataset,
+│   │                                    #                table-hyperparams, all
+│   ├── run_paper_stats.sh               # Shell wrapper → paper_stats.py run-all
+│   ├── run_additions.sh                 # Shell wrapper → run_analyses.py run-all
+│   └── run_post_step2.sh                # Watcher: polls for TV arrays, triggers Steps 3–5
 ├── src/df2023xai/
 │   ├── cli/                             # Installed entry points (dfx-*)
 │   │   ├── symlink_data.py              # dfx-symlink-data
@@ -233,12 +231,9 @@ python -c "import df2023xai; print('Package installed successfully')"
 - **Naming convention:** `COCO_DF_{MethodCode}_{SceneID}.jpg`
   - Example: `COCO_DF_C102B00000_00505270.jpg` → `scene_id = 00505270`
 - **Total disk size:** Approximately 300–400 GB
-
-> **Dataset Availability:** DF2023 is a research dataset available for download: https://zenodo.org/records/7326540
+- **Dataset availability:** https://zenodo.org/records/7326540
 
 ### Expected Raw Directory Layout
-
-Once you have obtained the dataset, organize it as follows:
 
 ```
 /path/to/DF2023_train/DF2023_V15_train/
@@ -276,33 +271,39 @@ dfx-build-manifest run \
   --out        data/manifests/df2023_v15_manifest.csv
 ```
 
-**Output:** `data/manifests/df2023_v15_manifest.csv`  
-**Manifest columns:** `image_id, image_path, mask_path, split, manip_code, manip_type, source_scene_id, scene_id, ...`
+**Output:** `data/manifests/df2023_v15_manifest.csv`
 
-#### Step 1c — Add Scene IDs
+#### Steps 1c–1e — Data Preparation (unified)
 
 ```bash
+# Run all three preparation steps in sequence
+python scripts/prepare_data.py all \
+  --manifest data/manifests/df2023_v15_manifest.csv \
+  --seed 1337
+
+# Or run each step individually:
+
+# Step 1c — Add scene IDs to manifest (in-place)
 python scripts/prepare_data.py add-scene-ids \
   --manifest data/manifests/df2023_v15_manifest.csv
-```
 
-Parses the `image_id` trailing segment to add a `source_scene_id` column. Overwrites the manifest in-place by default.
-
-#### Step 1d — Generate Scene-Disjoint Splits (CANONICAL)
-
-```bash
+# Step 1d — Generate scene-disjoint splits (CANONICAL)
 python scripts/prepare_data.py scene-splits \
   --manifest data/manifests/df2023_v15_manifest.csv \
-  --seed     1337
+  --seed 1337
+
+# Step 1e — Generate random splits (ablation only)
+python scripts/prepare_data.py random-splits \
+  --manifest data/manifests/df2023_v15_manifest.csv \
+  --seed 42
 ```
 
-**Flags:** `--manifest`, `--outdir`, `--seed` (default: 1337), `--train` (0.8), `--val` (0.1), `--test` (0.1)
+Run `python scripts/prepare_data.py --help` for all available flags.
 
-**Outputs:**
+**Scene-split outputs:**
 - `data/manifests/splits/train_split.csv` — 803,965 images, 800,000 unique scenes
 - `data/manifests/splits/val_split.csv` — 100,514 images, 100,000 unique scenes
 - `data/manifests/splits/test_split.csv` — 100,470 images, 100,000 unique scenes
-- `split_log_*.json` — reproducibility log
 
 **Split distribution by manipulation type:**
 
@@ -311,16 +312,6 @@ python scripts/prepare_data.py scene-splits \
 | Train | 803,965 | 800,000 | 241,047 | 160,955 | 80,487 | 321,476 |
 | Val | 100,514 | 100,000 | 30,170 | 19,954 | 10,010 | 40,366 |
 | Test | 100,470 | 100,000 | 30,283 | 20,091 | 10,003 | 40,158 |
-
-#### Step 1e — Generate Random Splits (Ablation Only)
-
-```bash
-python scripts/prepare_data.py random-splits \
-  --manifest data/manifests/df2023_v15_manifest.csv \
-  --seed     42
-```
-
-Uses fixed seed 42. Outputs `{train,val,test}_split_random.csv` for the ablation study in Section V.C.
 
 ---
 
@@ -346,10 +337,7 @@ for SEED in 1337 2027 3141; do
 done
 ```
 
-Or using make (seed 1337 only):
-```bash
-make train.segformer_b2_full
-```
+Or using make (seed 1337 only): `make train.segformer_b2_full`
 
 **Key hyperparameters:**
 
@@ -413,13 +401,9 @@ SEED=1337 python -m df2023xai.cli.run_train train \
   --config configs/train_segformer_b2_random.yaml
 ```
 
-**Outputs:** `outputs/segformer_b2_random/seed1337/`
-
 ---
 
 ### Phase 3: Forensic Evaluation
-
-#### Scene-Disjoint Evaluation (all 6 models)
 
 ```bash
 python -m df2023xai.cli.run_forensic_eval \
@@ -430,78 +414,68 @@ Or: `make eval.forensic`
 
 **Inputs:** 6 model checkpoint directories, `test_split.csv`  
 **Outputs:**
-- `outputs/eval_results/metrics_summary.csv` — 6-row table (model × seed × metrics)
-- `outputs/eval_results/{model}_sample_{0-4}.png` — overlay visualizations
-- `outputs/{model}/seed{seed}/test_metrics.json` — per-seed metrics (required by Phase 5)
+- `outputs/eval_results/metrics_summary.csv`
+- `outputs/eval_results/{model}_sample_{0-4}.png`
+- `outputs/{model}/seed{seed}/test_metrics.json` — required by Phase 5
 
-**Runtime:** ~20–30 minutes on GPU
-
-**Metrics reported:** IoU, Dice/F1, Precision, Recall, FPR  
+**Runtime:** ~20–30 minutes on GPU  
 **Prediction threshold:** 0.5 (sigmoid output)
 
-#### Ablation: Random-Split Evaluation
-
-```bash
-python -m df2023xai.cli.run_forensic_eval \
-  --config configs/forensic_eval_random.yaml
-```
+Ablation (random-split): `python -m df2023xai.cli.run_forensic_eval --config configs/forensic_eval_random.yaml`
 
 ---
 
 ### Phase 4: XAI Generation
 
 ```bash
-python -m df2023xai.cli.run_xai \
-  --config configs/xai_gen.yaml
+python -m df2023xai.cli.run_xai --config configs/xai_gen.yaml
 ```
 
 Or: `make xai.run`
 
-**Inputs:** Seed 1337 checkpoints for both models, 8 samples from `test_split.csv`  
-**Outputs:** `outputs/xai_audit/{model}_{method}_{idx}.png` (Grad-CAM++, IG, Attention Rollout × 8 images × 2 models), `xai_summary.json`  
+**Outputs:** `outputs/xai_audit/{model}_{method}_{idx}.png` (Grad-CAM++, IG, Attention Rollout × 8 images × 2 models)  
 **Runtime:** ~10 minutes
-
-**XAI methods:**
-- **Grad-CAM++** — class-discriminative saliency from final encoder block
-- **Integrated Gradients** — axiomatic pixel-level attribution, 50 Riemann steps, all-zero baseline
-- **Attention Rollout** — Transformer attention visualization
 
 ---
 
 ### Phase 5: Paper Statistics Pipeline
 
-This pipeline computes all quantitative values reported in the paper (Table IV, Saliency TV, bootstrap CIs, directional consistency check).
+Computes all quantitative values reported in the paper: Table IV metrics, Saliency TV, bootstrap CIs, and directional consistency.
 
 > **Prerequisite:** All 6 `test_metrics.json` files must exist (produced by Phase 3).
 
 #### Recommended: Single Command
 
 ```bash
-export CUBLAS_WORKSPACE_CONFIG=:4096:8
-bash scripts/run_paper_stats.sh
+bash scripts/run_paper_stats.sh              # runs all 5 steps
+bash scripts/run_paper_stats.sh --skip-step2 # skip TV if arrays already exist
 ```
-
-Flags:
-- `--skip-step2` — skip TV computation if TV arrays already exist in `outputs/tv_arrays/`
 
 #### Step-by-Step
 
-**Step 1 — Verify checkpoints:**
 ```bash
-python scripts/verify_checkpoints.py
-```
-Checks all 6 `best.pt` files exist. Exits with code 1 if any are missing.
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
 
-**Step 2 — Compute Saliency TV:**
-```bash
-python scripts/compute_saliency_tv.py
-# If GPU memory is limited (<12 GB):
-python scripts/compute_saliency_tv.py --chunk-size 5
-# Resume a specific combination:
-python scripts/compute_saliency_tv.py --models segformer_b2_v2 --seeds 2027
-# Force recompute:
-python scripts/compute_saliency_tv.py --overwrite
+# Step 1 — Verify all 6 checkpoints exist
+python scripts/paper_stats.py verify-checkpoints
+
+# Step 2 — Compute per-image Saliency TV (long-running)
+python scripts/paper_stats.py compute-tv
+python scripts/paper_stats.py compute-tv --chunk-size 5        # for <12 GB VRAM
+python scripts/paper_stats.py compute-tv --models segformer_b2_v2 --seeds 2027  # resume one
+python scripts/paper_stats.py compute-tv --overwrite           # force recompute
+
+# Step 3 — Bootstrap 95% CIs
+python scripts/paper_stats.py bootstrap-ci
+
+# Step 4 — Table IV (mean ± std across seeds)
+python scripts/paper_stats.py metric-std
+
+# Step 5 — Directional consistency check
+python scripts/paper_stats.py directional-check
 ```
+
+Run `python scripts/paper_stats.py --help` or `python scripts/paper_stats.py <subcommand> --help` for all flags.
 
 **TV computation protocol** (exact pipeline used in the paper):
 1. Generate Grad-CAM++ and IG attribution maps per image
@@ -509,120 +483,90 @@ python scripts/compute_saliency_tv.py --overwrite
 3. Resize to 512×512 via bilinear interpolation
 4. No post-hoc smoothing applied
 5. Compute isotropic discrete TV: `TV(S) = (1/HW) Σ sqrt((S[i+1,j]-S[i,j])² + (S[i,j+1]-S[i,j])²)`
-6. Average TV across all 100,470 test images
+6. Average over all 100,470 test images
 
-**Outputs:** `outputs/tv_arrays/*_tv.npy` (6 files, 100,470 float32 values each)  
-**⚠️ Runtime:** ~1.1 img/s → ~25 h per model×seed → ~150 h total for all 6 combinations  
-**Resume logic:** Checkpoints saved every 500 images as `.tmp.npy` — safe to interrupt and resume
+**Key outputs:**
 
-**Step 3 — Bootstrap 95% CI:**
-```bash
-python scripts/compute_bootstrap_ci.py
-```
+| Step | Output | Runtime |
+|---|---|---|
+| verify-checkpoints | Console report | < 1s |
+| compute-tv | `outputs/tv_arrays/*_tv.npy` (6 files) | ~25h per combination (~150h total) |
+| bootstrap-ci | `outputs/tv_arrays/bootstrap_results.json` | ~2–5 min |
+| metric-std | Table IV to stdout | < 1s |
+| directional-check | `outputs/tv_arrays/directional_check.json` | < 1s |
 
-**Inputs:** 6 TV `.npy` files  
-**Output:** `outputs/tv_arrays/bootstrap_results.json`  
-**Parameters:** B = 10,000 resamples, α = 0.05, RNG seed = 42  
-**Runtime:** ~2–5 minutes
-
-**Step 4 — Metric ±std (Table IV):**
-```bash
-python scripts/compute_metric_std.py
-python scripts/compute_metric_std.py --seeds 1337 2027 3141
-```
-
-**Inputs:** `outputs/{model}/seed{seed}/test_metrics.json` (6 files)  
-**Output:** Table IV printed to stdout  
-**Runtime:** < 1 second
-
-**Step 5 — Directional consistency check:**
-```bash
-python scripts/verify_directional_consistency.py
-```
-
-**Inputs:** 6 TV `.npy` files  
-**Output:** `outputs/tv_arrays/directional_check.json`; exits 0 if all 3 seeds pass, exits 1 if any fail  
-**Expected result:** TV(U-Net) > TV(SegFormer) for all 3 seeds
+> **Resume logic:** `compute-tv` saves checkpoints every 500 images as `.tmp.npy` — safe to interrupt and resume at any time.
 
 ---
 
 ### Phase 6: Supporting Analyses
 
-These three analyses can run in parallel while Step 2 is computing TV arrays:
+These analyses can run in parallel while `compute-tv` is processing. They address specific reviewer validation requirements.
+
+#### Recommended: Single Command
 
 ```bash
 bash scripts/run_additions.sh
 ```
 
-Or individually:
-
-#### Per-Sample IoU + Wilcoxon Test
+#### Step-by-Step
 
 ```bash
-python scripts/compute_per_sample_iou.py
-# If IoU arrays already exist:
-python scripts/compute_per_sample_iou.py --wilcoxon-only
+# Per-sample IoU + Wilcoxon signed-rank test
+python scripts/run_analyses.py per-sample-iou
+python scripts/run_analyses.py per-sample-iou --wilcoxon-only  # if arrays exist
+
+# Parameter randomization sanity check 
+python scripts/run_analyses.py sanity-check
+python scripts/run_analyses.py sanity-check --chunk-size 5     # for <12 GB VRAM
+python scripts/run_analyses.py sanity-check --overwrite
+
+# Fast coherence diagnostic (200 images)
+python scripts/run_analyses.py coherence-check
+
+# Frequency augmentation experiment — SRM 4-channel
+python scripts/run_analyses.py freq-experiment
+python scripts/run_analyses.py freq-experiment --skip-train    # if checkpoint exists
+python scripts/run_analyses.py freq-experiment --skip-tv       # IoU only
 ```
 
-**Inputs:** `test_split.csv`, 6 `best.pt` checkpoints  
-**Outputs:**
-- `outputs/metrics/unet_r34_seed{SEED}_per_sample_iou.npy`
-- `outputs/metrics/segformer_b2_seed{SEED}_per_sample_iou.npy`
-- Wilcoxon report appended to `logs/post_step2.log`
+Run `python scripts/run_analyses.py --help` or `python scripts/run_analyses.py <subcommand> --help` for all flags.
 
-**Expected result:** One-sided Wilcoxon H₁ (U-Net > SegFormer): p ≈ 0 (highly significant)  
-**Runtime:** ~2–4 hours total
+**Key outputs and expected results:**
 
-#### Randomization Sanity Check
+| Analysis | Output | Expected Result | Runtime |
+|---|---|---|---|
+| per-sample-iou | `outputs/metrics/*_per_sample_iou.npy` (6 files) | Wilcoxon p ≈ 0 (U-Net > SegFormer) | ~2–4h |
+| sanity-check | `outputs/tv_arrays/*_RANDOM_tv.npy` | U-Net +263%, SegFormer +650% above trained | ~25h per model |
+| coherence-check | `outputs/coherence_v2_results.json` | Directional signal confirmed on 200 images | ~minutes |
+| freq-experiment | `outputs/freq_experiment/` | IoU +2.7%, TV −3.66% on Enhancement subset | ~1h |
 
-```bash
-python scripts/validate_randomization_sanity.py
-# If GPU memory is limited:
-python scripts/validate_randomization_sanity.py --chunk-size 5
-# Force recompute:
-python scripts/validate_randomization_sanity.py --overwrite
-```
-
-**Inputs:** `test_split.csv` only — **no trained weights used** (random initialization, fixed seed 42)  
-**Outputs:**
-- `outputs/tv_arrays/unet_r34_RANDOM_tv.npy`
-- `outputs/tv_arrays/segformer_b2_RANDOM_tv.npy`
-
-**Expected result:** Random-model TV should be >> trained-model TV (≥ 10% threshold)  
-**Verified results:** U-Net +263%, SegFormer +650%  
-**Runtime:** ~25 hours per model (same pipeline as Step 2)
-
-#### Frequency Experiment — SRM Augmentation
-
-```bash
-python scripts/experiment_freq_augmentation.py
-# Skip fine-tuning (if checkpoint already exists):
-python scripts/experiment_freq_augmentation.py --skip-train
-# Skip TV computation (IoU only):
-python scripts/experiment_freq_augmentation.py --skip-tv
-```
-
-**Design:** Extends SegFormer-B2 (seed 2027 checkpoint) with a fixed, non-trainable SRM residual channel as a 4th input alongside RGB. Fine-tuned on Enhancement training subset (20,050 images) for 5,000 steps. Evaluated on Enhancement test subset only.
-
-**Inputs:** `{train,val,test}_split.csv`, `outputs/segformer_b2_v2/seed2027/best.pt`  
-**Outputs:**
-- `outputs/freq_experiment/checkpoints/{best,last}.pt`
-- `outputs/freq_experiment/segformer_b2_srm_tv_enhancement.npy`
-- `outputs/freq_experiment/segformer_b2_rgb_tv_enhancement.npy`
-- `outputs/freq_experiment/segformer_b2_srm_iou_enhancement.npy`
-
-**Results:** IoU 0.7967 (+2.7%), Saliency TV 0.008571 (−3.66%)  
-**Runtime:** ~1 hour (5,000 fine-tuning steps + Enhancement TV evaluation)
+> **Resume logic:** `sanity-check` and `freq-experiment` save checkpoints as `.tmp.npy` — safe to interrupt and resume.
 
 ---
 
 ### Phase 7: Manuscript Figures and Tables
 
 ```bash
-python scripts/generate_table_dataset_distribution.py   # Table II: split statistics
-python scripts/generate_table_hyperparams.py            # Table III: hyperparameters
-python scripts/generate_figure3.py                      # Figure 3: 2×6 qualitative panel
+# Generate all manuscript outputs in sequence
+python scripts/generate_manuscript.py all
+
+# Or individually:
+python scripts/generate_manuscript.py figure3           # Figure 3: 2×6 qualitative panel
+python scripts/generate_manuscript.py table-dataset     # Table II: split distribution
+python scripts/generate_manuscript.py table-hyperparams # Table III: hyperparameters
 ```
+
+Additional flags:
+```bash
+python scripts/generate_manuscript.py figure3 --dpi 600 --out outputs/figure3_hires.png
+python scripts/generate_manuscript.py table-dataset --format latex
+python scripts/generate_manuscript.py table-hyperparams --format latex
+```
+
+Run `python scripts/generate_manuscript.py --help` for all flags.
+
+> **Note:** `figure3` requires trained model checkpoints (Phase 2 outputs). `table-dataset` and `table-hyperparams` are CPU-only and can be run at any time after Phase 1.
 
 ---
 
@@ -630,16 +574,16 @@ python scripts/generate_figure3.py                      # Figure 3: 2×6 qualita
 
 ### Fixed Random Seeds
 
-| Purpose | Seed | Location |
+| Purpose | Seed | Script / Flag |
 |---|---|---|
 | Model training — primary | 1337 | `SEED=1337 dfx-train` |
 | Model training — replicate 2 | 2027 | `SEED=2027 dfx-train` |
 | Model training — replicate 3 | 3141 | `SEED=3141 dfx-train` |
-| Scene-disjoint split | 1337 | `split_scenes.py --seed 1337` |
-| Random split (ablation) | 42 | `generate_random_splits.py` |
-| Bootstrap CI | 42 | `compute_bootstrap_ci.py` |
-| Random model init (sanity check) | 42 | `validate_randomization_sanity.py` |
-| Frequency experiment base model | 2027 | `experiment_freq_augmentation.py` |
+| Scene-disjoint split | 1337 | `prepare_data.py scene-splits --seed 1337` |
+| Random split (ablation) | 42 | `prepare_data.py random-splits --seed 42` |
+| Bootstrap CI | 42 | `paper_stats.py bootstrap-ci --seed 42` |
+| Random model init (sanity check) | 42 | `run_analyses.py sanity-check` |
+| Frequency experiment base model | 2027 | `run_analyses.py freq-experiment` |
 
 ### Determinism Checklist
 
@@ -647,9 +591,11 @@ Before running any experiment, verify:
 
 - [ ] `CUBLAS_WORKSPACE_CONFIG=:4096:8` is exported (SegFormer only)
 - [ ] `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` is **NOT** set (L40 vGPU)
-- [ ] AMP is disabled (`amp: false` in config)
-- [ ] Using float32 throughout (no mixed precision)
-- [ ] Correct seed passed via `SEED=` environment variable
+- [ ] AMP is disabled (`amp: false` in all configs)
+- [ ] float32 used throughout (no mixed precision)
+- [ ] Correct seed passed via `SEED=` environment variable for training
+
+> **Environment safety:** Both `paper_stats.py` and `run_analyses.py` automatically warn at startup if `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` is detected or if `CUBLAS_WORKSPACE_CONFIG` is missing.
 
 ### Normalization Robustness
 
@@ -689,7 +635,7 @@ outputs/
     └── *.png
 ```
 
-**Total disk usage (outputs only):** approximately 2–3 GB (excluding checkpoints which total ~1.1 GB across 6 seeds)
+**Total disk usage (outputs only):** approximately 2–3 GB (excluding checkpoints: ~1.1 GB across 6 seeds)
 
 ---
 
@@ -697,8 +643,9 @@ outputs/
 
 | Issue | Impact | Resolution |
 |---|---|---|
-| TV computation takes ~150 h total | Long wall-clock time for full reproduction | Use `--skip-step2` if TV arrays already exist; use `--chunk-size 5` for smaller VRAM |
-| `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` crashes L40-12Q | Training/inference fails immediately | Do not set this variable on vGPU profiles |
+| `compute-tv` takes ~150h total | Long wall-clock time for full reproduction | Use `--skip-step2` if arrays already exist; use `--chunk-size 5` for smaller VRAM |
+| `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` crashes L40-12Q | Training/inference fails immediately | Do not set this variable on vGPU profiles; both `paper_stats.py` and `run_analyses.py` warn at startup if detected |
+| Makefile has hardcoded absolute path | `make` targets fail on other machines | Change `ROOT:=/home/proj-samer/df2023-xai` to `ROOT:=$(shell pwd)` |
 
 ---
 
@@ -711,9 +658,9 @@ If you use this code or the DF2023-XAI framework in your research, please cite:
   title     = {Beyond Accuracy: Auditing Image Forgery Localization via
                Scene-Disjoint Evaluation and {XAI} Faithfulness},
   author    = {Aoudi, Samer},
-  journal   = {TBA},
+  journal   = {TBD},
   year      = {2026},
-  publisher = {IEEE}
+  publisher = {TBD}
 }
 ```
 
