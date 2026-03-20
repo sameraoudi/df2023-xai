@@ -27,7 +27,7 @@ data:
 
 train:
   max_steps: 160000
-  val_every_steps: 1000
+  val_every_steps: 10000
   early_stop_patience: 15
   log_every_steps: 1000
   
