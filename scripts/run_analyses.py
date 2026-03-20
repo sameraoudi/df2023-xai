@@ -3,14 +3,14 @@
 # PROJECT      : DF2023-XAI (Explainable AI for Deepfake Detection)
 # SCRIPT       : run_analyses.py
 # VERSION      : 1.0.0
-# DESCRIPTION  : Unified runner for reviewer-response analysis scripts.
+# DESCRIPTION  : Unified runner for analysis scripts.
 # -------------------------------------------------------------------------------
 # FUNCTIONALITY:
 #     Combines four analysis scripts into a single entry point with subcommands:
-#       per-sample-iou   — R2.C4: per-image IoU arrays + Wilcoxon signed-rank test
-#       sanity-check     — R1.C2: parameter randomization sanity check (~150h GPU)
+#       per-sample-iou   — per-image IoU arrays + Wilcoxon signed-rank test
+#       sanity-check     — parameter randomization sanity check (~150h GPU)
 #       coherence-check  — Early directional TV check (200-image subset, seed2027)
-#       freq-experiment  — R1.C3: SRM frequency-augmented SegFormer experiment
+#       freq-experiment  — SRM frequency-augmented SegFormer experiment
 #       run-all          — Run all four in dependency order (as subprocesses)
 #     Shared saliency pipeline helpers (compute_isotropic_tv, relu_minmax_norm,
 #     resize_512) are extracted once. FP32/AMP distinction between coherence-check
