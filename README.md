@@ -315,7 +315,9 @@ python scripts/prepare_data.py scene-splits \
 #### Step 1e — Generate Random Splits (Ablation Only)
 
 ```bash
-python scripts/generate_random_splits.py
+python scripts/prepare_data.py random-splits \
+  --manifest data/manifests/df2023_v15_manifest.csv \
+  --seed     42
 ```
 
 Uses fixed seed 42. Outputs `{train,val,test}_split_random.csv` for the ablation study in Section V.C.
