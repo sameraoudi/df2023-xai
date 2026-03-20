@@ -1,30 +1,16 @@
-# configs/forensic_eval.yaml
+# configs/forensic_eval_random.yaml
 project_root: .  # Relative path is safer for Git cloning
 
 models:
+  # The script uses 'load_model_from_dir' from factory.py
+  # It expects the FOLDER path (where best.pt and config_train.json live)
   # --- SegFormer Runs ---
-  - name: "SegFormer-B2 (Seed 1337)"
+  - name: "SegFormer (Random Split)"
     path: "outputs/segformer_b2_v2/seed1337"
-
-  - name: "SegFormer-B2 (Seed 2027)"
-    path: "outputs/segformer_b2_v2/seed2027"
-
-  - name: "SegFormer-B2 (Seed 3141)"
-    path: "outputs/segformer_b2_v2/seed3141"
-
-  # --- U-Net Runs
-  - name: "U-Net-R34 (Seed 1337)"
-    path: "outputs/unet_r34/seed1337"
-  
-  - name: "U-Net-R34 (Seed 2027)"
-    path: "outputs/unet_r34/seed2027"
-
-  - name: "U-Net-R34 (Seed 3141)"
-    path: "outputs/unet_r34/seed3141"
 
 data:
   # CRITICAL: Point to the canonical Scene-Disjoint split
-  manifest_csv: "data/manifests/splits/test_split.csv"
+  manifest_csv: "data/manifests/splits/test_split_random.csv"
   img_size: 512
   batch_size: 16  # Faster evaluation
   num_workers: 2
@@ -35,16 +21,16 @@ metrics:
   # We only report the "Forgery" class (Index 1 is handled by the binary logic)
   report_per_class: false 
   # Standard Forensic Metrics
-  overlap: [iou, dice, pixel_f1]
+  overlap: [iou, dice, precision, recall, pixel_f1]
 
-# --- Robustness Analysis ---
-# This generates the "Perturbation Analysis" 
+# --- Q1 Value Add: Robustness Analysis ---
+# This generates the "Perturbation Analysis" often requested by reviewers
 robustness:
   enabled: true
   jpeg_compression: [70, 90]  # Standard social media qualities
   gaussian_noise: [0.01, 0.05] # Standard variance
 
 out:
-  dir: "outputs/eval_results/"
+  dir: "outputs/eval_results_random/"
   save_overlays: true     # Saves visual examples (Pred vs GT)
   save_tables: true       # Saves CSVs for LaTeX
