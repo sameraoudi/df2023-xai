@@ -1,16 +1,32 @@
-# configs/forensic_eval_random.yaml
+# configs/forensic_eval.yaml
 project_root: .  # Relative path is safer for Git cloning
 
 models:
   # The script uses 'load_model_from_dir' from factory.py
   # It expects the FOLDER path (where best.pt and config_train.json live)
   # --- SegFormer Runs ---
-  - name: "SegFormer (Random Split)"
+  - name: "SegFormer-B2 (Seed 1337)"
     path: "outputs/segformer_b2_v2/seed1337"
+
+  - name: "SegFormer-B2 (Seed 2027)"
+    path: "outputs/segformer_b2_v2/seed2027"
+
+  - name: "SegFormer-B2 (Seed 3141)"
+    path: "outputs/segformer_b2_v2/seed3141"
+
+  # --- U-Net Runs
+  - name: "U-Net-R34 (Seed 1337)"
+    path: "outputs/unet_r34_v2/seed1337"
+  
+  - name: "U-Net-R34 (Seed 2027)"
+    path: "outputs/unet_r34_v2/seed2027"
+
+  - name: "U-Net-R34 (Seed 3141)"
+    path: "outputs/unet_r34_v2/seed3141"
 
 data:
   # CRITICAL: Point to the canonical Scene-Disjoint split
-  manifest_csv: "data/manifests/splits/test_split_random.csv"
+  manifest_csv: "data/manifests/splits/test_split.csv"
   img_size: 512
   batch_size: 16  # Faster evaluation
   num_workers: 2
@@ -31,6 +47,6 @@ robustness:
   gaussian_noise: [0.01, 0.05] # Standard variance
 
 out:
-  dir: "outputs/eval_results_random/"
+  dir: "outputs/eval_results/"
   save_overlays: true     # Saves visual examples (Pred vs GT)
   save_tables: true       # Saves CSVs for LaTeX
