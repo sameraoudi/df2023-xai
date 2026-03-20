@@ -5,12 +5,13 @@ model:
   name: segformer_b2
   num_classes: 1  # This forces a Binary Output [B, 1, H, W].
   pretrained: true
+  # --- FIX 1: Scientific Consistency ---
   use_smp: true
   use_timm: false 
   p_foreground_prior: 0.10
 
 data:
-  # 1. Point to manifests
+  # 1. Point to your NEW manifest
   manifest_csv: ${project_root}/data/manifests/df2023_manifest.csv
   train_manifest_csv: ${project_root}/data/manifests/splits/train_split.csv
   val_manifest_csv:   ${project_root}/data/manifests/splits/val_split.csv
@@ -26,11 +27,11 @@ data:
 
 train:
   max_steps: 160000
-  val_every_steps: 1000
+  val_every_steps: 10000
   early_stop_patience: 15
   log_every_steps: 1000
   
-  lr: 5.0e-6           # From 1.0e-5        
+  lr: 5.0e-6        # From 1.0e-5        
   weight_decay: 0.05   # CHANGE: Increase from 0.01 to 0.05 (Stronger regularization)
   warmup_steps: 5000   # CHANGE: Increase from 4000 (Gentler start)
   min_lr: 1.0e-7
