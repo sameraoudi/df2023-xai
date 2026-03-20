@@ -17,7 +17,7 @@ data:
 
 models:
   # Model Architecture: U-Net with ResNet34 Encoder
-  name: "unet_resnet34"
+  name: "unet"
   encoder_name: "resnet34"
   encoder_weights: "imagenet"
   classes: 1 
