@@ -121,15 +121,9 @@ df2023-xai/
 │   └── val/masks/                       # → symlink to COCO_V15_GT val
 ├── scripts/
 │   ├── — Data preparation —
-│   ├── preprocess_add_scene_ids.py
-│   ├── generate_scene_splits.py
-│   ├── generate_random_splits.py
+│   ├── prepare_data.py
 │   ├── — Paper statistics pipeline (Steps 1–5) —
-│   ├── verify_checkpoints.py
-│   ├── compute_saliency_tv.py
-│   ├── compute_bootstrap_ci.py
-│   ├── compute_metric_std.py
-│   ├── verify_directional_consistency.py
+│   ├── paper_stats.py
 │   ├── — Supporting analyses —
 │   ├── compute_per_sample_iou.py
 │   ├── validate_randomization_sanity.py
